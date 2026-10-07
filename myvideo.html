@@ -9,23 +9,506 @@
       body {
         margin: 0;
         background: #111;
+        color: #ddd;
+        font-family: system-ui, sans-serif;
         display: flex;
+        flex-direction: column;
         justify-content: center;
         align-items: center;
+        gap: 12px;
         min-height: 100vh;
       }
 
       video {
         width: 80%;
         max-width: 1200px;
+        background: #000;
+      }
+
+      .bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        width: 80%;
+        max-width: 1200px;
+      }
+
+      button,
+      select {
+        background: #222;
+        color: #ddd;
+        border: 1px solid #444;
+        border-radius: 4px;
+        padding: 6px 12px;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      button:hover,
+      select:hover {
+        border-color: #888;
+      }
+
+      #status {
+        font-size: 0.9em;
+        color: #999;
+      }
+
+      body.drag {
+        outline: 3px dashed #666;
+        outline-offset: -12px;
       }
     </style>
   </head>
 
   <body>
-    <video controls>
-      <source src="E:\series\Outlander.S01E01.480p.BluRay.SoftSub.DigiMoviez.mkv" type="video/mp4" />
-      Your browser does not support HTML5 video.
-    </video>
+    <div class="bar">
+      <button id="openBtn">Open video…</button>
+      <button id="subBtn">Add subtitle…</button>
+      <label>Subtitles <select id="subSelect"><option value="off">Off</option></select></label>
+      <span id="status">Open or drop a video file</span>
+      <input id="videoInput" type="file" accept="video/*,.mkv" hidden />
+      <input id="subInput" type="file" accept=".srt,.vtt,.ass,.ssa" hidden />
+    </div>
+
+    <video id="video" controls></video>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const statusEl = $("status");
+      const subSelect = $("subSelect");
+      let video = $("video");
+      let videoUrl = null;
+      let subs = [];
+      let generation = 0;
+
+      $("openBtn").onclick = () => $("videoInput").click();
+      $("subBtn").onclick = () => $("subInput").click();
+      $("videoInput").onchange = (e) => e.target.files[0] && openVideo(e.target.files[0]);
+      $("subInput").onchange = (e) => e.target.files[0] && addSubtitleFile(e.target.files[0]);
+      subSelect.onchange = () => selectSub(subSelect.value);
+
+      document.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        document.body.classList.add("drag");
+      });
+      document.addEventListener("dragleave", () => document.body.classList.remove("drag"));
+      document.addEventListener("drop", (e) => {
+        e.preventDefault();
+        document.body.classList.remove("drag");
+        const isSub = (f) => /\.(srt|vtt|ass|ssa)$/i.test(f.name);
+        const files = [...e.dataTransfer.files];
+        files.filter((f) => !isSub(f)).forEach(openVideo);
+        files.filter(isSub).forEach(addSubtitleFile);
+      });
+
+      function setStatus(text) {
+        statusEl.textContent = text;
+      }
+
+      // Text tracks cannot be removed from a <video>, so each new file gets a fresh element.
+      function openVideo(file) {
+        const gen = ++generation;
+        const fresh = document.createElement("video");
+        fresh.id = "video";
+        fresh.controls = true;
+        video.replaceWith(fresh);
+        video = fresh;
+        if (videoUrl) URL.revokeObjectURL(videoUrl);
+        videoUrl = URL.createObjectURL(file);
+        video.src = videoUrl;
+        video.onerror = () => setStatus(`Cannot play ${file.name} (unsupported codec?)`);
+        video.textTracks.onchange = syncSelectFromTracks;
+        document.title = file.name;
+        subs = [];
+        subSelect.length = 1;
+        subSelect.value = "off";
+        video.play().catch(() => {});
+
+        if (/\.(mkv|mka|webm)$/i.test(file.name)) {
+          extractMkvSubs(file, gen).catch((err) => {
+            console.error(err);
+            if (gen === generation) setStatus(`Subtitle scan failed: ${err.message}`);
+          });
+        } else {
+          setStatus(file.name);
+        }
+      }
+
+      function addTrack(label, lang) {
+        const track = video.addTextTrack("subtitles", label, lang || "");
+        track.mode = "hidden";
+        subs.push(track);
+        const opt = new Option(label, String(subs.length - 1));
+        subSelect.add(opt);
+        return track;
+      }
+
+      function addUnsupported(label) {
+        const opt = new Option(`${label} (image sub, unsupported)`, "");
+        opt.disabled = true;
+        subSelect.add(opt);
+      }
+
+      function selectSub(value) {
+        subs.forEach((t, i) => (t.mode = String(i) === value ? "showing" : "hidden"));
+        subSelect.value = value;
+      }
+
+      function syncSelectFromTracks() {
+        const i = subs.findIndex((t) => t.mode === "showing");
+        subSelect.value = i < 0 ? "off" : String(i);
+      }
+
+      // ---------- external subtitle files ----------
+
+      async function addSubtitleFile(file) {
+        if (!video.src) return setStatus("Open a video first");
+        const text = decodeText(new Uint8Array(await file.arrayBuffer()));
+        const cues = /\.(ass|ssa)$/i.test(file.name) ? parseAss(text) : parseSrtVtt(text);
+        if (!cues.length) return setStatus(`No cues found in ${file.name}`);
+        const track = addTrack(file.name);
+        for (const c of cues) addCue(track, c.start, c.end, c.text);
+        selectSub(String(subs.length - 1));
+        setStatus(`Loaded ${file.name} (${cues.length} cues)`);
+      }
+
+      // Non-UTF-8 subtitles are usually Persian/Arabic Windows-1256.
+      function decodeText(bytes) {
+        if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder("utf-16le").decode(bytes);
+        if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder("utf-16be").decode(bytes);
+        try {
+          return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+        } catch {
+          return new TextDecoder("windows-1256").decode(bytes);
+        }
+      }
+
+      function parseTime(s) {
+        const parts = s.trim().replace(",", ".").split(":").map(Number);
+        return parts.reduce((acc, v) => acc * 60 + v, 0);
+      }
+
+      function parseSrtVtt(text) {
+        const cues = [];
+        for (const block of text.replace(/\r/g, "").split(/\n{2,}/)) {
+          const lines = block.split("\n");
+          const i = lines.findIndex((l) => l.includes("-->"));
+          if (i < 0) continue;
+          const [a, b] = lines[i].split("-->");
+          const start = parseTime(a);
+          const end = parseTime(b.trim().split(/\s+/)[0]);
+          const body = lines.slice(i + 1).join("\n").trim();
+          if (body && !isNaN(start) && !isNaN(end)) cues.push({ start, end, text: body });
+        }
+        return cues;
+      }
+
+      function parseAss(text) {
+        let fields = ["layer", "start", "end", "style", "name", "marginl", "marginr", "marginv", "effect", "text"];
+        const cues = [];
+        for (const line of text.replace(/\r/g, "").split("\n")) {
+          if (/^Format:/i.test(line) && /text/i.test(line)) {
+            fields = line.slice(7).split(",").map((f) => f.trim().toLowerCase());
+          } else if (/^Dialogue:/i.test(line)) {
+            const values = splitN(line.slice(9), ",", fields.length);
+            const get = (f) => values[fields.indexOf(f)] ?? "";
+            const body = cleanAss(get("text"));
+            if (body) cues.push({ start: parseTime(get("start")), end: parseTime(get("end")), text: body });
+          }
+        }
+        return cues;
+      }
+
+      function splitN(s, sep, n) {
+        const out = [];
+        while (out.length < n - 1) {
+          const i = s.indexOf(sep);
+          if (i < 0) break;
+          out.push(s.slice(0, i));
+          s = s.slice(i + 1);
+        }
+        out.push(s);
+        return out;
+      }
+
+      function cleanAss(text) {
+        if (/\{[^}]*\\p[1-9]/.test(text)) return ""; // vector drawing, not text
+        return text
+          .replace(/\{\\i1\}/g, "<i>")
+          .replace(/\{\\i0\}/g, "</i>")
+          .replace(/\{[^}]*\}/g, "")
+          .replace(/\\N/gi, "\n")
+          .replace(/\\h/g, " ")
+          .trim();
+      }
+
+      // VTTCue text is markup: keep <i>/<b>/<u>, drop other tags, escape the rest.
+      function toCueText(text) {
+        return text
+          .replace(/\r\n?/g, "\n")
+          .replace(/<(\/?)([ibu])>/gi, "\x01$1$2\x02")
+          .replace(/<[^>]*>/g, "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\x01/g, "<")
+          .replace(/\x02/g, ">");
+      }
+
+      function addCue(track, start, end, text) {
+        if (end <= start) end = start + 3;
+        track.addCue(new VTTCue(start, end, toCueText(text)));
+      }
+
+      // ---------- MKV embedded subtitle extraction ----------
+
+      const ID = {
+        EBML: 0x1a45dfa3,
+        Segment: 0x18538067,
+        Info: 0x1549a966,
+        TimecodeScale: 0x2ad7b1,
+        Tracks: 0x1654ae6b,
+        TrackEntry: 0xae,
+        TrackNumber: 0xd7,
+        TrackType: 0x83,
+        CodecID: 0x86,
+        CodecPrivate: 0x63a2,
+        Name: 0x536e,
+        Language: 0x22b59c,
+        LanguageIETF: 0x22b59d,
+        FlagDefault: 0x88,
+        ContentEncodings: 0x6d80,
+        ContentEncoding: 0x6240,
+        ContentCompression: 0x5034,
+        ContentCompAlgo: 0x4254,
+        ContentCompSettings: 0x4255,
+        Cluster: 0x1f43b675,
+        Timecode: 0xe7,
+        SimpleBlock: 0xa3,
+        BlockGroup: 0xa0,
+        Block: 0xa1,
+        BlockDuration: 0x9b,
+      };
+      const LEVEL1 = new Set([0x114d9b74, 0x1549a966, 0x1654ae6b, 0x1f43b675, 0x1c53bb6b, 0x1941a469, 0x1043a770, 0x1254c367]);
+      const TEXT_CODECS = /^(S_TEXT\/(UTF8|ASCII|SSA|ASS|WEBVTT)|S_SSA|S_ASS)$/;
+      const CHUNK = 4 << 20;
+
+      class Reader {
+        constructor(file) {
+          this.file = file;
+          this.start = 0;
+          this.buf = new Uint8Array(0);
+        }
+        async bytes(pos, len) {
+          len = Math.min(len, this.file.size - pos);
+          if (pos < this.start || pos + len > this.start + this.buf.length) {
+            const end = Math.min(this.file.size, pos + Math.max(len, CHUNK));
+            this.buf = new Uint8Array(await this.file.slice(pos, end).arrayBuffer());
+            this.start = pos;
+          }
+          return this.buf.subarray(pos - this.start, pos - this.start + len);
+        }
+        async header(pos) {
+          const b = await this.bytes(pos, 12);
+          const id = readId(b, 0);
+          const size = readVint(b, id.len);
+          if (!size) throw new Error("corrupt EBML");
+          return { id: id.value, size: size.unknown ? -1 : size.value, data: pos + id.len + size.len };
+        }
+      }
+
+      function vintLen(byte) {
+        for (let i = 0; i < 8; i++) if (byte & (0x80 >> i)) return i + 1;
+        return 0;
+      }
+
+      function readId(b, off) {
+        const len = vintLen(b[off]);
+        if (!len || len > 4) throw new Error("corrupt EBML id");
+        let value = 0;
+        for (let i = 0; i < len; i++) value = value * 256 + b[off + i];
+        return { value, len };
+      }
+
+      function readVint(b, off) {
+        const len = vintLen(b[off]);
+        if (!len || off + len > b.length) return null;
+        let value = b[off] & (0xff >> len);
+        let allOnes = value === 0xff >> len;
+        for (let i = 1; i < len; i++) {
+          value = value * 256 + b[off + i];
+          if (b[off + i] !== 0xff) allOnes = false;
+        }
+        return { value, len, unknown: allOnes };
+      }
+
+      function* children(b, start = 0, end = b.length) {
+        let p = start;
+        while (p < end) {
+          const id = readId(b, p);
+          const size = readVint(b, p + id.len);
+          if (!size) return;
+          const data = p + id.len + size.len;
+          yield { id: id.value, data, end: data + size.value, bytes: b.subarray(data, data + size.value) };
+          p = data + size.value;
+        }
+      }
+
+      const readUint = (b) => b.reduce((acc, v) => acc * 256 + v, 0);
+      const readStr = (b) => new TextDecoder().decode(b).replace(/\0+$/, "");
+
+      function parseTracks(b) {
+        const tracks = [];
+        for (const e of children(b)) {
+          if (e.id !== ID.TrackEntry) continue;
+          const t = { language: "eng", isDefault: true };
+          for (const c of children(e.bytes)) {
+            if (c.id === ID.TrackNumber) t.number = readUint(c.bytes);
+            else if (c.id === ID.TrackType) t.type = readUint(c.bytes);
+            else if (c.id === ID.CodecID) t.codec = readStr(c.bytes);
+            else if (c.id === ID.Name) t.name = readStr(c.bytes);
+            else if (c.id === ID.Language) t.language = readStr(c.bytes);
+            else if (c.id === ID.LanguageIETF) t.ietf = readStr(c.bytes);
+            else if (c.id === ID.FlagDefault) t.isDefault = readUint(c.bytes) === 1;
+            else if (c.id === ID.ContentEncodings) t.compression = parseCompression(c.bytes);
+          }
+          tracks.push(t);
+        }
+        return tracks;
+      }
+
+      function parseCompression(b) {
+        for (const enc of children(b)) {
+          if (enc.id !== ID.ContentEncoding) continue;
+          for (const c of children(enc.bytes)) {
+            if (c.id !== ID.ContentCompression) continue;
+            const comp = { algo: 0, settings: new Uint8Array(0) };
+            for (const s of children(c.bytes)) {
+              if (s.id === ID.ContentCompAlgo) comp.algo = readUint(s.bytes);
+              else if (s.id === ID.ContentCompSettings) comp.settings = s.bytes.slice();
+            }
+            return comp;
+          }
+        }
+        return null;
+      }
+
+      async function decompress(payload, comp) {
+        if (!comp) return payload;
+        if (comp.algo === 3) {
+          const out = new Uint8Array(comp.settings.length + payload.length);
+          out.set(comp.settings);
+          out.set(payload, comp.settings.length);
+          return out;
+        }
+        if (comp.algo === 0) {
+          const stream = new Blob([payload]).stream().pipeThrough(new DecompressionStream("deflate"));
+          return new Uint8Array(await new Response(stream).arrayBuffer());
+        }
+        throw new Error(`unsupported compression ${comp.algo}`);
+      }
+
+      async function extractMkvSubs(file, gen) {
+        const r = new Reader(file);
+        const ebml = await r.header(0);
+        if (ebml.id !== ID.EBML) return setStatus(file.name);
+        const seg = await r.header(ebml.data + ebml.size);
+        if (seg.id !== ID.Segment) return setStatus(file.name);
+        const segEnd = seg.size < 0 ? file.size : seg.data + seg.size;
+
+        let scale = 1e6;
+        let subTracks = null; // track number -> { track, codec, compression }
+        let cueCount = 0;
+        let lastUi = 0;
+        const stale = () => gen !== generation;
+
+        const handleBlock = async (data, clusterTc, durationTicks) => {
+          const tn = readVint(data, 0);
+          const info = subTracks.get(tn.value);
+          const flags = data[tn.len + 2];
+          if (!info || flags & 0x06) return; // laced subtitle blocks are not used in practice
+          const rel = (data[tn.len] << 24) >> 16 | data[tn.len + 1];
+          const payload = await decompress(data.subarray(tn.len + 3), info.compression);
+          let text = new TextDecoder().decode(payload);
+          if (/S?SA$/.test(info.codec)) text = cleanAss(splitN(text, ",", 9)[8] || "");
+          text = text.trim();
+          if (!text) return;
+          const start = ((clusterTc + rel) * scale) / 1e9;
+          const end = durationTicks != null ? start + (durationTicks * scale) / 1e9 : start + 4;
+          addCue(info.track, start, end, text);
+          cueCount++;
+        };
+
+        let pos = seg.data;
+        while (pos < segEnd && !stale()) {
+          const h = await r.header(pos);
+
+          if (h.id === ID.Info) {
+            for (const c of children(await r.bytes(h.data, h.size)))
+              if (c.id === ID.TimecodeScale) scale = readUint(c.bytes);
+          } else if (h.id === ID.Tracks) {
+            const all = parseTracks((await r.bytes(h.data, h.size)).slice());
+            subTracks = new Map();
+            let firstIndex = null;
+            for (const t of all.filter((t) => t.type === 0x11)) {
+              const label = [t.name, t.ietf || t.language].filter(Boolean).join(" – ") || `Track ${t.number}`;
+              if (!TEXT_CODECS.test(t.codec)) {
+                addUnsupported(label);
+                continue;
+              }
+              const track = addTrack(label, t.ietf || t.language);
+              subTracks.set(t.number, { track, codec: t.codec, compression: t.compression });
+              if (firstIndex === null || (t.isDefault && !subs[firstIndex].isDefault)) firstIndex = subs.length - 1;
+              track.isDefault = t.isDefault;
+            }
+            if (!subTracks.size) return setStatus(`${file.name} — no embedded text subtitles`);
+            selectSub(String(firstIndex));
+          } else if (h.id === ID.Cluster) {
+            if (!subTracks) return setStatus(file.name);
+            const clusterEnd = h.size < 0 ? segEnd : h.data + h.size;
+            let p = h.data;
+            let clusterTc = 0;
+            while (p < clusterEnd) {
+              const c = await r.header(p);
+              if (h.size < 0 && LEVEL1.has(c.id)) break;
+              if (c.id === ID.Timecode) {
+                clusterTc = readUint(await r.bytes(c.data, c.size));
+              } else if (c.id === ID.SimpleBlock) {
+                const tn = readVint(await r.bytes(c.data, 8), 0);
+                if (subTracks.has(tn.value)) await handleBlock((await r.bytes(c.data, c.size)).slice(), clusterTc, null);
+              } else if (c.id === ID.BlockGroup) {
+                // Peek at the leading Block's track number so large video groups are skipped unread.
+                const first = await r.header(c.data);
+                const tn = first.id === ID.Block ? readVint(await r.bytes(first.data, 8), 0) : null;
+                if (!tn || subTracks.has(tn.value)) {
+                  const group = (await r.bytes(c.data, c.size)).slice();
+                  let block = null;
+                  let duration = null;
+                  for (const g of children(group)) {
+                    if (g.id === ID.Block) block = g.bytes;
+                    else if (g.id === ID.BlockDuration) duration = readUint(g.bytes);
+                  }
+                  if (block) await handleBlock(block, clusterTc, duration);
+                }
+              }
+              p = c.data + c.size;
+            }
+            pos = p;
+            const now = performance.now();
+            if (now - lastUi > 200) {
+              lastUi = now;
+              setStatus(`${file.name} — scanning subtitles ${Math.floor((pos / file.size) * 100)}% (${cueCount} cues)`);
+            }
+            continue;
+          }
+
+          if (h.size < 0) break;
+          pos = h.data + h.size;
+        }
+        if (!stale()) setStatus(`${file.name} — ${subTracks?.size || 0} embedded subtitle track(s), ${cueCount} cues`);
+      }
+    </script>
   </body>
 </html>
