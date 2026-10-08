@@ -1,138 +1,192 @@
 import "./style.css";
 import { extractMkvSubs } from "./mkv/extract.js";
-import { SUBTITLE_FILE, decodeText, parseSubtitleFile, toCueText } from "./subtitles/parsers.js";
+import { SubtitleManager } from "./player/subtitles.js";
+import { SUBTITLE_FILE, decodeText, parseSubtitleFile } from "./subtitles/parsers.js";
+import { initControls } from "./ui/controls.js";
+import { formatDelay } from "./ui/format.js";
+import { renderIcons } from "./ui/icons.js";
+import { closeMenus } from "./ui/menu.js";
+import { DELAY_STEP, initSubtitleMenu } from "./ui/subtitle-menu.js";
+import { progressToast, toast } from "./ui/toast.js";
 
 const $ = (id) => document.getElementById(id);
-const statusEl = $("status");
-const subSelect = $("subSelect");
-let video = $("video");
+const app = $("app");
+const stage = $("stage");
+const video = $("video");
+const videoInput = $("videoInput");
+const subInput = $("subInput");
+
+renderIcons();
+const subs = new SubtitleManager(video);
+const controls = initControls({ stage, video });
+initSubtitleMenu({ button: $("ccBtn"), menu: $("subMenu"), subs, onAddFile: () => subInput.click() });
+
 let videoUrl = null;
-let subs = [];
 let scan = null;
 
-$("openBtn").onclick = () => $("videoInput").click();
-$("subBtn").onclick = () => $("subInput").click();
-$("videoInput").onchange = (e) => e.target.files[0] && openVideo(e.target.files[0]);
-$("subInput").onchange = (e) => e.target.files[0] && addSubtitleFile(e.target.files[0]);
-subSelect.onchange = () => selectSub(subSelect.value);
+const pickVideo = () => videoInput.click();
+$("openBtn").onclick = pickVideo;
+$("dropzone").onclick = pickVideo;
+$("subBtn").onclick = () => subInput.click();
+// Reset the value so picking the same file again still fires change.
+videoInput.onchange = () => {
+  if (videoInput.files[0]) openVideo(videoInput.files[0]);
+  videoInput.value = "";
+};
+subInput.onchange = () => {
+  if (subInput.files[0]) addSubtitleFile(subInput.files[0]);
+  subInput.value = "";
+};
 
-document.addEventListener("dragover", (e) => {
-  e.preventDefault();
-  document.body.classList.add("drag");
+// ----- drag & drop -----
+let dragDepth = 0;
+document.addEventListener("dragenter", (e) => {
+  if (!e.dataTransfer?.types.includes("Files")) return;
+  dragDepth++;
+  app.classList.add("dragging");
 });
-document.addEventListener("dragleave", () => document.body.classList.remove("drag"));
+document.addEventListener("dragleave", () => {
+  if (--dragDepth <= 0) {
+    dragDepth = 0;
+    app.classList.remove("dragging");
+  }
+});
+document.addEventListener("dragover", (e) => e.preventDefault());
 document.addEventListener("drop", (e) => {
   e.preventDefault();
-  document.body.classList.remove("drag");
+  dragDepth = 0;
+  app.classList.remove("dragging");
   const isSub = (f) => SUBTITLE_FILE.test(f.name);
   const files = [...e.dataTransfer.files];
-  files.filter((f) => !isSub(f)).forEach(openVideo);
+  const videoFile = files.find((f) => !isSub(f));
+  if (videoFile) openVideo(videoFile);
   files.filter(isSub).forEach(addSubtitleFile);
 });
 
-function setStatus(text) {
-  statusEl.textContent = text;
-}
-
-// Text tracks cannot be removed from a <video>, so each new file gets a fresh element.
+// ----- opening media -----
 function openVideo(file) {
   scan?.abort();
   scan = new AbortController();
-  const fresh = document.createElement("video");
-  fresh.id = "video";
-  fresh.controls = true;
-  video.replaceWith(fresh);
-  video = fresh;
+  closeMenus();
+  subs.reset();
   if (videoUrl) URL.revokeObjectURL(videoUrl);
   videoUrl = URL.createObjectURL(file);
   video.src = videoUrl;
-  video.onerror = () => setStatus(`Cannot play ${file.name} (unsupported codec?)`);
-  video.textTracks.onchange = syncSelectFromTracks;
-  document.title = `${file.name} – CueBox`;
-  subs = [];
-  subSelect.length = 1;
-  subSelect.value = "off";
   video.play().catch(() => {});
+
+  app.classList.remove("is-empty");
+  $("title").textContent = file.name;
+  $("title").title = file.name;
+  document.title = `${file.name} – CueBox`;
 
   if (/\.(mkv|mka|webm)$/i.test(file.name)) {
     const { signal } = scan;
     loadEmbeddedSubs(file, signal).catch((err) => {
       console.error(err);
-      if (!signal.aborted) setStatus(`Subtitle scan failed: ${err.message}`);
+      if (!signal.aborted) toast(`Subtitle scan failed: ${err.message}`, { type: "error" });
     });
-  } else {
-    setStatus(file.name);
   }
 }
 
+video.addEventListener("error", () => {
+  if (!video.src) return;
+  toast("This video can't be played. Its codec may not be supported by your browser.", {
+    type: "error",
+    duration: 6000,
+  });
+});
+
 async function loadEmbeddedSubs(file, signal) {
   const byNumber = new Map();
+  const progress = progressToast("Scanning for subtitles…");
+  signal.addEventListener("abort", () => progress.close());
   let lastUi = 0;
+
   const result = await extractMkvSubs(file, {
     signal,
     onTracks(tracks) {
       let pick = null;
       for (const t of tracks) {
-        if (!t.supported) {
-          addUnsupported(t.label);
-          continue;
-        }
-        byNumber.set(t.number, addTrack(t.label, t.language));
-        if (pick === null || (t.isDefault && !pick.isDefault)) pick = { index: subs.length - 1, ...t };
+        const entry = subs.add(t.label, { language: t.language, supported: t.supported });
+        if (!t.supported) continue;
+        byNumber.set(t.number, entry);
+        if (!pick || (t.isDefault && !pick.isDefault)) pick = { index: subs.entries.length - 1, ...t };
       }
-      if (pick) selectSub(String(pick.index));
+      if (pick) subs.select(pick.index);
     },
     onCue(number, { start, end, text }) {
-      addCue(byNumber.get(number), start, end, text);
+      subs.addCue(byNumber.get(number), start, end, text);
     },
     onProgress(fraction, cueCount) {
       const now = performance.now();
-      if (now - lastUi < 200) return;
+      if (now - lastUi < 150) return;
       lastUi = now;
-      setStatus(`${file.name} — scanning subtitles ${Math.floor(fraction * 100)}% (${cueCount} cues)`);
+      progress.update(fraction, `Loading subtitles… ${cueCount} lines`);
     },
   });
+
   if (signal.aborted) return;
-  if (!result || !byNumber.size) return setStatus(`${file.name} — no embedded text subtitles`);
-  setStatus(`${file.name} — ${byNumber.size} embedded subtitle track(s), ${result.cueCount} cues`);
-}
-
-function addTrack(label, lang) {
-  const track = video.addTextTrack("subtitles", label, lang || "");
-  track.mode = "hidden";
-  subs.push(track);
-  subSelect.add(new Option(label, String(subs.length - 1)));
-  return track;
-}
-
-function addUnsupported(label) {
-  const opt = new Option(`${label} (image sub, unsupported)`, "");
-  opt.disabled = true;
-  subSelect.add(opt);
-}
-
-function selectSub(value) {
-  subs.forEach((t, i) => (t.mode = String(i) === value ? "showing" : "hidden"));
-  subSelect.value = value;
-}
-
-function syncSelectFromTracks() {
-  const i = subs.findIndex((t) => t.mode === "showing");
-  subSelect.value = i < 0 ? "off" : String(i);
-}
-
-function addCue(track, start, end, text) {
-  if (end <= start) end = start + 3;
-  track.addCue(new VTTCue(start, end, toCueText(text)));
+  if (!result || !byNumber.size) {
+    const unsupported = result?.tracks.length ?? 0;
+    return progress.close(
+      unsupported ? "Only image subtitles found (unsupported)" : "No embedded subtitles",
+      unsupported ? "error" : "info",
+    );
+  }
+  const n = byNumber.size;
+  progress.close(`${n} subtitle track${n > 1 ? "s" : ""} loaded · ${result.cueCount} lines`);
 }
 
 async function addSubtitleFile(file) {
-  if (!video.src) return setStatus("Open a video first");
+  if (!video.src) return toast("Open a video first, then add subtitles.", { type: "error" });
   const text = decodeText(new Uint8Array(await file.arrayBuffer()));
   const cues = parseSubtitleFile(file.name, text);
-  if (!cues.length) return setStatus(`No cues found in ${file.name}`);
-  const track = addTrack(file.name);
-  for (const c of cues) addCue(track, c.start, c.end, c.text);
-  selectSub(String(subs.length - 1));
-  setStatus(`Loaded ${file.name} (${cues.length} cues)`);
+  if (!cues.length) return toast(`No subtitles found in ${file.name}`, { type: "error" });
+  const entry = subs.add(file.name, { source: "file" });
+  for (const c of cues) subs.addCue(entry, c.start, c.end, c.text);
+  subs.select(subs.entries.length - 1);
+  toast(`Loaded ${file.name}`, { type: "success" });
 }
+
+// ----- keyboard -----
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const target = e.target;
+  if (target.closest?.("button") && (e.key === " " || e.key === "Enter")) return;
+  if (target.tagName === "INPUT" && target.type !== "range") return;
+
+  const actions = {
+    " ": () => controls.togglePlay(),
+    k: () => controls.togglePlay(),
+    ArrowLeft: () => controls.seekBy(-5),
+    ArrowRight: () => controls.seekBy(5),
+    j: () => controls.seekBy(-10),
+    l: () => controls.seekBy(10),
+    ArrowUp: () => controls.changeVolume(0.05),
+    ArrowDown: () => controls.changeVolume(-0.05),
+    m: () => controls.toggleMute(),
+    f: () => controls.toggleFullscreen(),
+    o: () => pickVideo(),
+    c: () => {
+      if (!subs.hasUsable) return controls.flash("captions", "No subtitles");
+      const entry = subs.cycle();
+      controls.flash("captions", entry ? entry.label : "Subtitles off");
+    },
+    g: () => shiftDelay(-1),
+    h: () => shiftDelay(1),
+  };
+  const action = actions[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+  if (!action) return;
+  e.preventDefault();
+  if (target.type === "range") target.blur();
+  action();
+  controls.wake();
+});
+
+function shiftDelay(dir) {
+  if (!subs.hasUsable) return;
+  subs.setDelay(subs.delay + dir * DELAY_STEP);
+  controls.flash("captions", `Delay ${formatDelay(subs.delay)}`);
+}
+
+window.cueboxReady = true;
