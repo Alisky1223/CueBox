@@ -1,0 +1,53 @@
+body {
+  margin: 0;
+  background: #111;
+  color: #ddd;
+  font-family: system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  min-height: 100vh;
+}
+
+video {
+  width: 80%;
+  max-width: 1200px;
+  background: #000;
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 80%;
+  max-width: 1200px;
+}
+
+button,
+select {
+  background: #222;
+  color: #ddd;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover,
+select:hover {
+  border-color: #888;
+}
+
+#status {
+  font-size: 0.9em;
+  color: #999;
+}
+
+body.drag {
+  outline: 3px dashed #666;
+  outline-offset: -12px;
+}
