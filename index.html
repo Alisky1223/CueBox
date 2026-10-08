@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CueBox</title>
+  </head>
+
+  <body>
+    <div class="bar">
+      <button id="openBtn">Open video…</button>
+      <button id="subBtn">Add subtitle…</button>
+      <label>
+        Subtitles
+        <select id="subSelect">
+          <option value="off">Off</option>
+        </select>
+      </label>
+      <span id="status">Open or drop a video file</span>
+      <input id="videoInput" type="file" accept="video/*,.mkv" hidden />
+      <input id="subInput" type="file" accept=".srt,.vtt,.ass,.ssa" hidden />
+    </div>
+
+    <video id="video" controls></video>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
