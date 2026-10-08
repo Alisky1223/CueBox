@@ -58,3 +58,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and project layout.
 ## License
 
 [MIT](LICENSE)
+
+## Original Contributors
+
+- Alireza Asadi
+- Sahar Jahaniyan
