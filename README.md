@@ -62,4 +62,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and project layout.
 ## Original Contributors
 
 - Alireza Asadi
-- Sahar Jahaniyan
+- (My Love) Sahar Jahaniyan
