@@ -42,7 +42,7 @@ CI runs the same checks on every pull request.
    git push origin vX.Y.Z
    ```
 
-The [Release workflow](.github/workflows/release.yml) checks that the tag matches `package.json`, runs the checks, builds, and publishes a GitHub Release. The release has `CueBox.html` attached and uses the CHANGELOG section as its notes.
+The [Release workflow](.github/workflows/release.yml) checks that the tag matches `package.json`, runs the checks, builds, and publishes a GitHub Release. The release has `CueBox.html` attached and uses the CHANGELOG section as its notes. The same build is then deployed to [GitHub Pages](https://alisky1223.github.io/CueBox/) as the installable app.
 
 ### Protected branches
 
@@ -67,6 +67,7 @@ Force-pushes and deleting these branches are also blocked.
 | `src/mkv/extract.js`       | Matroska subtitle track and cue extraction (no DOM)     |
 | `src/mkv/audio.js`         | Audio track listing and single-track remux (no DOM)     |
 | `src/subtitles/parsers.js` | SRT/VTT/ASS parsing, text decoding, cue sanitising      |
+| `public/`                  | PWA files copied as-is: manifest, service worker, icons |
 | `tests/`                   | Vitest unit tests; `helpers/mkv.js` builds MKV fixtures |
 
 ## Adding tests
