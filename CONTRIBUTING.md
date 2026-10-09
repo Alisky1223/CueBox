@@ -30,6 +30,20 @@ CI runs the same checks on every pull request.
 4. Open a PR into `develop` whose description starts with `Closes #<issue>`.
 5. Releases go from `develop` into `main` through a PR.
 
+### Releasing
+
+1. On a release branch, bump `version` in `package.json` and rename the CHANGELOG `[Unreleased]` section to `[x.y.z] - YYYY-MM-DD`.
+2. Merge it into `develop`, then `develop` into `main`.
+3. Tag the merge commit on `main` and push the tag:
+
+   ```sh
+   git switch main && git pull
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+
+The [Release workflow](.github/workflows/release.yml) checks that the tag matches `package.json`, runs the checks, builds, and publishes a GitHub Release. The release has `CueBox.html` attached and uses the CHANGELOG section as its notes.
+
 ### Protected branches
 
 `main` and `develop` are protected, and nobody can push to them directly. Every change goes through a pull request that:

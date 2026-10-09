@@ -19,7 +19,7 @@
 
 ## Usage
 
-Download `index.html` from the latest [CI run](https://github.com/Alisky1223/CueBox/actions/workflows/ci.yml) (artifact **cuebox**), or build it yourself (see below). Then open it in Chrome or Edge. Double-clicking it works, with no server needed.
+Download `CueBox.html` from the [latest release](https://github.com/Alisky1223/CueBox/releases/latest), or build it yourself (see below). Then open it in Chrome or Edge. Double-clicking it works, with no server needed.
 
 > The `index.html` in the repo root is the development source and won't run when opened directly. Use `dist/index.html` or `pnpm dev` instead.
 
