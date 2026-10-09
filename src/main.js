@@ -1,7 +1,9 @@
 import "./style.css";
 import { extractMkvSubs } from "./mkv/extract.js";
+import { AudioTracks } from "./player/audio.js";
 import { SubtitleManager } from "./player/subtitles.js";
 import { SUBTITLE_FILE, decodeText, parseSubtitleFile } from "./subtitles/parsers.js";
+import { initAudioMenu } from "./ui/audio-menu.js";
 import { initControls } from "./ui/controls.js";
 import { formatDelay } from "./ui/format.js";
 import { renderIcons } from "./ui/icons.js";
@@ -19,6 +21,8 @@ const subInput = $("subInput");
 renderIcons();
 const subs = new SubtitleManager(video);
 const controls = initControls({ stage, video });
+const audio = new AudioTracks(video);
+initAudioMenu({ button: $("audioBtn"), menu: $("audioMenu"), audio, onSelect: switchAudio });
 initSubtitleMenu({ button: $("ccBtn"), menu: $("subMenu"), subs, onAddFile: () => subInput.click() });
 
 let videoUrl = null;
@@ -69,6 +73,7 @@ function openVideo(file) {
   scan = new AbortController();
   closeMenus();
   subs.reset();
+  audio.reset();
   if (videoUrl) URL.revokeObjectURL(videoUrl);
   videoUrl = URL.createObjectURL(file);
   video.src = videoUrl;
@@ -80,6 +85,7 @@ function openVideo(file) {
   document.title = `${file.name} – CueBox`;
 
   if (/\.(mkv|mka|webm)$/i.test(file.name)) {
+    audio.loadMkv(file).catch((err) => console.error(err));
     const { signal } = scan;
     loadEmbeddedSubs(file, signal).catch((err) => {
       console.error(err);
@@ -137,6 +143,28 @@ async function loadEmbeddedSubs(file, signal) {
   progress.close(`${n} subtitle track${n > 1 ? "s" : ""} loaded · ${result.cueCount} lines`);
 }
 
+async function switchAudio(index) {
+  const entry = audio.entries[index];
+  let progress = null;
+  let lastUi = 0;
+  try {
+    const switched = await audio.select(index, {
+      onProgress(fraction) {
+        const now = performance.now();
+        if (now - lastUi < 150) return;
+        lastUi = now;
+        progress ??= progressToast(`Loading audio: ${entry.label}`);
+        progress.update(fraction, `Loading audio: ${entry.label} · ${Math.round(fraction * 100)}%`);
+      },
+    });
+    progress?.close(switched ? `Audio: ${entry.label}` : undefined);
+  } catch (err) {
+    console.error(err);
+    progress?.close();
+    toast(`Can't play audio "${entry.label}": ${err.message}`, { type: "error", duration: 6000 });
+  }
+}
+
 async function addSubtitleFile(file) {
   if (!video.src) return toast("Open a video first, then add subtitles.", { type: "error" });
   const text = decodeText(new Uint8Array(await file.arrayBuffer()));
@@ -171,6 +199,12 @@ document.addEventListener("keydown", (e) => {
       if (!subs.hasUsable) return controls.flash("captions", "No subtitles");
       const entry = subs.cycle();
       controls.flash("captions", entry ? entry.label : "Subtitles off");
+    },
+    a: () => {
+      const next = audio.next();
+      if (next === null) return controls.flash("headphones", "No other audio tracks");
+      controls.flash("headphones", audio.entries[next].label);
+      switchAudio(next);
     },
     g: () => shiftDelay(-1),
     h: () => shiftDelay(1),

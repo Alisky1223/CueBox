@@ -32,13 +32,47 @@ export function* children(b, start = 0, end = b.length) {
     const size = readVint(b, p + id.len);
     if (!size) return;
     const data = p + id.len + size.len;
-    yield { id: id.value, data, end: data + size.value, bytes: b.subarray(data, data + size.value) };
+    yield { id: id.value, start: p, data, end: data + size.value, bytes: b.subarray(data, data + size.value) };
     p = data + size.value;
   }
 }
 
 export const readUint = (b) => b.reduce((acc, v) => acc * 256 + v, 0);
 export const readStr = (b) => new TextDecoder().decode(b).replace(/\0+$/, "");
+
+export function concat(parts) {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0;
+  for (const p of parts) {
+    out.set(p, o);
+    o += p.length;
+  }
+  return out;
+}
+
+const idBytes = (id) => {
+  const bytes = [];
+  for (let v = id; v > 0; v = Math.floor(v / 256)) bytes.unshift(v & 0xff);
+  return Uint8Array.from(bytes);
+};
+
+// Fixed 8-byte sizes and uints keep element lengths predictable, so offsets can be computed up front.
+const fixed8 = (n, marker = 0) => {
+  const b = new Uint8Array(8);
+  for (let i = 7, v = n; i >= 0; i--, v = Math.floor(v / 256)) b[i] = v & 0xff;
+  b[0] |= marker;
+  return b;
+};
+
+/** Element header (id + 8-byte size) for a payload of `size` bytes. */
+export const writeHeader = (id, size) => concat([idBytes(id), fixed8(size, 0x01)]);
+
+export const writeElement = (id, ...payload) => {
+  const data = concat(payload);
+  return concat([writeHeader(id, data.length), data]);
+};
+
+export const writeUint = (id, n) => writeElement(id, fixed8(n));
 
 /** Random-access reader over a Blob/File with a single cached window. */
 export class Reader {

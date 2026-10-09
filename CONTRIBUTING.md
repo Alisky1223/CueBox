@@ -46,9 +46,12 @@ Force-pushes and deleting these branches are also blocked.
 | `index.html`               | Page markup (Vite entry)                                |
 | `src/main.js`              | App wiring: opening files, embedded subs, shortcuts     |
 | `src/player/subtitles.js`  | Subtitle track state: selection, delay, cues            |
+| `src/player/audio.js`      | Audio track switching: native API or synced sidecar     |
 | `src/ui/`                  | Controls, menus, toasts, icons, formatting              |
 | `src/mkv/ebml.js`          | Low-level EBML reading (vints, elements, blob reader)   |
+| `src/mkv/scan.js`          | Matroska walker: tracks, then blocks of chosen tracks   |
 | `src/mkv/extract.js`       | Matroska subtitle track and cue extraction (no DOM)     |
+| `src/mkv/audio.js`         | Audio track listing and single-track remux (no DOM)     |
 | `src/subtitles/parsers.js` | SRT/VTT/ASS parsing, text decoding, cue sanitising      |
 | `tests/`                   | Vitest unit tests; `helpers/mkv.js` builds MKV fixtures |
 

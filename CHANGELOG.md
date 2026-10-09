@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format is based on
 - New interface with a dark cinematic theme, a drop-zone start screen and toast notifications.
 - Custom player controls: seek bar with time preview, ±10s buttons, volume, speed, picture-in-picture and fullscreen. Controls hide on their own during playback.
 - Subtitle menu with track picker, size, background style and timing delay.
+- Audio track menu (`A` to cycle) for videos with multiple dubs. It uses the browser's `audioTracks` where available. Otherwise it extracts the track from the MKV/WebM and plays it in sync with the video.
 - Keyboard shortcuts.
 - Volume and subtitle style are remembered between sessions.
 

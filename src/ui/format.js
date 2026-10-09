@@ -11,3 +11,6 @@ export function formatDelay(seconds) {
   const sign = seconds > 0 ? "+" : seconds < 0 ? "−" : "";
   return `${sign}${Math.abs(seconds).toFixed(1)}s`;
 }
+
+export const escapeHtml = (s) =>
+  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
