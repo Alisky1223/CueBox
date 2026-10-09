@@ -44,6 +44,16 @@ subInput.onchange = () => {
   subInput.value = "";
 };
 
+// ----- installed app (PWA) -----
+const secure = location.protocol === "https:" || location.hostname === "localhost";
+if (import.meta.env.PROD && secure && "serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch((err) => console.error(err));
+}
+// Files opened from the OS ("Open with → CueBox") arrive through the launch queue.
+window.launchQueue?.setConsumer(async ({ files }) => {
+  if (files?.length) openFiles(await Promise.all(files.map((h) => h.getFile())));
+});
+
 // ----- drag & drop -----
 let dragDepth = 0;
 document.addEventListener("dragenter", (e) => {
@@ -62,12 +72,15 @@ document.addEventListener("drop", (e) => {
   e.preventDefault();
   dragDepth = 0;
   app.classList.remove("dragging");
+  openFiles([...e.dataTransfer.files]);
+});
+
+function openFiles(files) {
   const isSub = (f) => SUBTITLE_FILE.test(f.name);
-  const files = [...e.dataTransfer.files];
   const videoFile = files.find((f) => !isSub(f));
   if (videoFile) openVideo(videoFile);
   files.filter(isSub).forEach(addSubtitleFile);
-});
+}
 
 // ----- opening media -----
 function openVideo(file) {
