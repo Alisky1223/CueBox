@@ -5,7 +5,7 @@
 
 **Drop a file, get your subtitles.** A zero-install offline video player that finds the soft subs inside your MKV files and shows them right away.
 
-<!-- TODO: add screenshot at docs/screenshot.png -->
+![CueBox playing a video with subtitles](docs/screenshots/desktop.png)
 
 ## Features
 
@@ -19,7 +19,7 @@
 
 ## Usage
 
-### Install as an app (recommended)
+### Install on a computer (recommended)
 
 Open [alisky1223.github.io/CueBox](https://alisky1223.github.io/CueBox/) in Chrome or Edge and click **Install** in the address bar. CueBox then:
 
@@ -27,6 +27,20 @@ Open [alisky1223.github.io/CueBox](https://alisky1223.github.io/CueBox/) in Chro
 - works offline after the first visit,
 - shows up in **Open with** for `.mkv`, `.mp4` and `.webm` files, and can be set as the default player,
 - updates itself when a new version is released.
+
+### Install on a phone
+
+Open [alisky1223.github.io/CueBox](https://alisky1223.github.io/CueBox/) on your phone, then:
+
+- **Android (Chrome):** tap the **⋮** menu, then **Install app** (on some phones it's called **Add to Home screen**), then **Install**.
+- **iPhone/iPad (Safari):** tap **Share**, then **Add to Home Screen**, then **Add**. On iOS 16.4 or newer, Chrome and Edge have the same option in their Share menu.
+
+CueBox gets a home-screen icon and opens full screen. Tap the folder button to pick a video from your phone. Like on a computer, it works offline after the first visit.
+
+<p>
+  <img src="docs/screenshots/phone-start.png" alt="CueBox start screen on a phone" width="220" />
+  <img src="docs/screenshots/phone-playing.png" alt="CueBox playing a video on a phone in landscape" width="476" />
+</p>
 
 ### Download a single file
 
@@ -67,6 +81,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and project layout.
 - Image-based subtitles (PGS, VobSub) aren't supported.
 - Subtitles embedded in MP4 files aren't extracted. Load them with **Add subtitle** instead.
 - Audio tracks can only be switched in MKV/WebM files, unless your browser supports `audioTracks` (Safari does). The chosen track must use a codec your browser can play: AAC, Opus, Vorbis, MP3 and FLAC work, but Chrome can't play AC3/E-AC3/DTS. Switching to a track loads it into memory, which takes a few seconds for large files.
+- On phones, you open videos from inside CueBox. It doesn't show up in the file manager's **Open with** menu.
+- iPhone and iPad can't play MKV files at all, so only MP4 and WebM work there. Android plays MKV.
+- Subtitle and audio track extraction reads the whole file, which can be slow for large MKVs on phones with little memory.
 - Whether a video plays depends on your browser's codecs. HEVC/x265 needs a GPU that can decode HEVC, with hardware acceleration turned on. Edge also needs [HEVC Video Extensions](https://apps.microsoft.com/detail/9nmzlz57r3t7) from the Microsoft Store. CueBox detects HEVC files it can't play and tells you how to fix it.
 
 ## License
