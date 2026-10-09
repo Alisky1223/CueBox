@@ -56,7 +56,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and project layout.
 - Image-based subtitles (PGS, VobSub) aren't supported.
 - Subtitles embedded in MP4 files aren't extracted. Load them with **Add subtitle** instead.
 - Audio tracks can only be switched in MKV/WebM files, unless your browser supports `audioTracks` (Safari does). The chosen track must use a codec your browser can play: AAC, Opus, Vorbis, MP3 and FLAC work, but Chrome can't play AC3/E-AC3/DTS. Switching to a track loads it into memory, which takes a few seconds for large files.
-- Whether a video plays depends on your browser's codecs. HEVC/x265, for example, needs hardware decoding support.
+- Whether a video plays depends on your browser's codecs. HEVC/x265 needs a GPU that can decode HEVC, with hardware acceleration turned on. Edge also needs [HEVC Video Extensions](https://apps.microsoft.com/detail/9nmzlz57r3t7) from the Microsoft Store. CueBox detects HEVC files it can't play and tells you how to fix it.
 
 ## License
 

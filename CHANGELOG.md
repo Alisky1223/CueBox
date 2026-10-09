@@ -14,6 +14,7 @@ All notable changes to this project are documented here. The format is based on
 - Audio track menu (`A` to cycle) for videos with multiple dubs. It uses the browser's `audioTracks` where available. Otherwise it extracts the track from the MKV/WebM and plays it in sync with the video.
 - Keyboard shortcuts.
 - Volume and subtitle style are remembered between sessions.
+- HEVC/x265 videos the browser can't decode now show steps to enable HEVC playback instead of a black picture or a generic error.
 
 ### Fixed
 
