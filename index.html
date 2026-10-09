@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>CueBox</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='2' width='22' height='20' rx='6' fill='%23ffb020'/%3E%3Cpath d='M10 7v7l5.5-3.5z' fill='%23111'/%3E%3Cpath d='M7 18h10' stroke='%23111' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <!-- Inline: the module stylesheet is exactly what fails to load when this warning shows. -->
+    <style>
+      .file-warning {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        text-align: center;
+        background: #0a0a0e;
+        color: #9b9ba8;
+        font:
+          15px/1.5 "Segoe UI",
+          system-ui,
+          sans-serif;
+      }
+      .file-warning[hidden] {
+        display: none;
+      }
+      .file-warning h1 {
+        margin: 0 0 12px;
+        font-size: 22px;
+        color: #f3f3f6;
+      }
+      .file-warning p {
+        max-width: 520px;
+        margin: 4px 0;
+      }
+      .file-warning code {
+        padding: 1px 6px;
+        border-radius: 5px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #ffb020;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="app is-empty" id="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="logo" data-icon="logo"></span>
+          <span class="brand-name">CueBox</span>
+        </div>
+        <div class="now-playing" id="title"></div>
+        <div class="actions">
+          <button class="btn btn-ghost" id="subBtn" title="Add subtitle file">
+            <span data-icon="captions"></span><span class="btn-label">Add subtitle</span>
+          </button>
+          <button class="btn btn-primary" id="openBtn" title="Open video (O)">
+            <span data-icon="folder"></span><span class="btn-label">Open video</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="stage" id="stage">
+        <video id="video" playsinline></video>
+
+        <button class="dropzone" id="dropzone" type="button">
+          <span class="dropzone-icon" data-icon="upload"></span>
+          <span class="dropzone-title">Drop a video here</span>
+          <span class="dropzone-sub">or click to browse your files</span>
+          <span class="chips">
+            <span class="chip">MKV</span><span class="chip">MP4</span><span class="chip">WebM</span>
+            <span class="chip chip-accent">Soft subs auto-detected</span>
+          </span>
+          <span class="shortcuts">
+            <span><kbd>Space</kbd> play</span>
+            <span><kbd>←</kbd><kbd>→</kbd> seek</span>
+            <span><kbd>F</kbd> fullscreen</span>
+            <span><kbd>C</kbd> subtitles</span>
+            <span><kbd>A</kbd> audio</span>
+            <span><kbd>G</kbd><kbd>H</kbd> sub delay</span>
+          </span>
+        </button>
+
+        <div class="flash" id="flash"></div>
+        <div class="spinner" id="spinner"></div>
+
+        <div class="controls" id="controls">
+          <div class="seek" id="seek">
+            <div class="seek-track">
+              <div class="seek-buffered" id="seekBuffered"></div>
+              <div class="seek-progress" id="seekProgress"></div>
+              <div class="seek-thumb" id="seekThumb"></div>
+            </div>
+            <div class="seek-tooltip" id="seekTooltip">0:00</div>
+          </div>
+
+          <div class="controls-row">
+            <div class="group">
+              <button class="icon-btn" id="playBtn" title="Play (Space)" data-icon="play"></button>
+              <button class="icon-btn" id="backBtn" title="Back 10s (J)" data-icon="back10"></button>
+              <button class="icon-btn" id="fwdBtn" title="Forward 10s (L)" data-icon="fwd10"></button>
+              <div class="volume">
+                <button class="icon-btn" id="muteBtn" title="Mute (M)" data-icon="volume"></button>
+                <input class="volume-slider" id="volume" type="range" min="0" max="1" step="0.01" value="1" />
+              </div>
+              <span class="time" id="time">0:00 / 0:00</span>
+            </div>
+            <div class="group">
+              <button class="pill-btn" id="speedBtn" title="Playback speed">1×</button>
+              <button class="icon-btn" id="audioBtn" title="Audio track (A)" data-icon="headphones" hidden></button>
+              <button class="icon-btn" id="ccBtn" title="Subtitles (C)" data-icon="captions"></button>
+              <button class="icon-btn" id="pipBtn" title="Picture in picture" data-icon="pip"></button>
+              <button class="icon-btn" id="fsBtn" title="Fullscreen (F)" data-icon="maximize"></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="menu" id="speedMenu" hidden></div>
+        <div class="menu menu-wide" id="audioMenu" hidden></div>
+        <div class="menu menu-wide" id="subMenu" hidden></div>
+      </main>
+
+      <div class="drop-overlay"><span data-icon="upload"></span>Drop to open</div>
+      <div class="toasts" id="toasts" aria-live="polite"></div>
+
+      <input id="videoInput" type="file" accept="video/*,.mkv" hidden />
+      <input id="subInput" type="file" accept=".srt,.vtt,.ass,.ssa" hidden />
+    </div>
+
+    <div class="file-warning" id="fileWarning" hidden>
+      <h1>CueBox can't start from this file</h1>
+      <p>
+        This <code>index.html</code> is the development source, and browsers block its scripts when it's opened
+        directly.
+      </p>
+      <p>Run <code>pnpm build</code> and open <code>dist/index.html</code> instead, or start <code>pnpm dev</code>.</p>
+    </div>
+    <script>
+      addEventListener("load", () => {
+        if (window.cueboxReady) return;
+        document.getElementById("app").hidden = true;
+        document.getElementById("fileWarning").hidden = false;
+      });
+    </script>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
