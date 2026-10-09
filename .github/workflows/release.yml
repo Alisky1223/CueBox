@@ -32,6 +32,9 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: cp dist/index.html CueBox.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
 
       # Notes are the CHANGELOG section for this version, e.g. "## [0.2.0] - 2026-10-09".
       - name: Extract release notes
@@ -49,3 +52,17 @@ jobs:
         run: gh release create "$GITHUB_REF_NAME" CueBox.html --title "CueBox $GITHUB_REF_NAME" --notes-file notes.md
         env:
           GH_TOKEN: ${{ github.token }}
+
+  # Installable app (PWA) at https://alisky1223.github.io/CueBox/
+  pages:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

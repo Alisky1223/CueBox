@@ -19,6 +19,17 @@
 
 ## Usage
 
+### Install as an app (recommended)
+
+Open [alisky1223.github.io/CueBox](https://alisky1223.github.io/CueBox/) in Chrome or Edge and click **Install** in the address bar. CueBox then:
+
+- gets its own window, plus a Start menu and taskbar icon,
+- works offline after the first visit,
+- shows up in **Open with** for `.mkv`, `.mp4` and `.webm` files, and can be set as the default player,
+- updates itself when a new version is released.
+
+### Download a single file
+
 Download `CueBox.html` from the [latest release](https://github.com/Alisky1223/CueBox/releases/latest), or build it yourself (see below). Then open it in Chrome or Edge. Double-clicking it works, with no server needed.
 
 > The `index.html` in the repo root is the development source and won't run when opened directly. Use `dist/index.html` or `pnpm dev` instead.
