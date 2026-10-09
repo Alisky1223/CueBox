@@ -1,6 +1,6 @@
 {
   "name": "cuebox",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Drop a file, get your subtitles. Zero-install offline video player with automatic MKV soft-sub support.",
   "license": "MIT",
   "private": true,
