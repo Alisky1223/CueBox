@@ -46,12 +46,12 @@ The [Release workflow](.github/workflows/release.yml) checks that the tag matche
 
 ### Protected branches
 
-`main` and `develop` are protected, and nobody can push to them directly. Every change goes through a pull request that:
+`main` and `develop` are protected by repository rulesets, and nobody can push to them directly, not even admins. Every change goes through a pull request that:
 
-- has been approved by the code owner ([@Alisky1223](https://github.com/Alisky1223)),
-- passes CI.
+- passes CI (the `check` job),
+- for `main`, comes from `develop` (the `main-source` job).
 
-Force-pushes and deleting these branches are also blocked.
+Only the maintainer ([@Alisky1223](https://github.com/Alisky1223)) can merge. Force-pushes and deleting these branches are also blocked.
 
 ## Project layout
 
