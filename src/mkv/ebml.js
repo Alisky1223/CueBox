@@ -32,7 +32,7 @@ export function* children(b, start = 0, end = b.length) {
     const size = readVint(b, p + id.len);
     if (!size) return;
     const data = p + id.len + size.len;
-    yield { id: id.value, data, end: data + size.value, bytes: b.subarray(data, data + size.value) };
+    yield { id: id.value, start: p, data, end: data + size.value, bytes: b.subarray(data, data + size.value) };
     p = data + size.value;
   }
 }
