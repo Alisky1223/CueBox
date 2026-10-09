@@ -127,7 +127,8 @@ export async function scanMkv(blob, { onHeader, onInfo, onTracks, onBlock, onPro
           cluster.timecode = readUint(await r.bytes(c.data, c.size));
         } else if (c.id === ID.SimpleBlock) {
           const tn = readVint(await r.bytes(c.data, 8), 0);
-          if (wanted.has(tn.value)) await onBlock?.({ id: c.id, ...(await readElement(r, p, c)), track: tn.value }, cluster);
+          if (wanted.has(tn.value))
+            await onBlock?.({ id: c.id, ...(await readElement(r, p, c)), track: tn.value }, cluster);
         } else if (c.id === ID.BlockGroup) {
           // Peek at the leading Block's track number so large video groups are skipped unread.
           const first = await r.header(c.data);

@@ -100,7 +100,10 @@ describe("extractMkvTrack", () => {
 
   it("returns null when aborted", async () => {
     const controller = new AbortController();
-    const out = await extractMkvTrack(fixture(), 2, { signal: controller.signal, onProgress: () => controller.abort() });
+    const out = await extractMkvTrack(fixture(), 2, {
+      signal: controller.signal,
+      onProgress: () => controller.abort(),
+    });
     expect(out).toBeNull();
   });
 });

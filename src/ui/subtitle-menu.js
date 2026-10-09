@@ -1,4 +1,4 @@
-import { formatDelay } from "./format.js";
+import { escapeHtml, formatDelay } from "./format.js";
 import { icon } from "./icons.js";
 import { closeMenus, toggleMenu } from "./menu.js";
 import { load, save } from "./storage.js";
@@ -6,8 +6,6 @@ import { load, save } from "./storage.js";
 const SIZES = { S: 80, M: 100, L: 125, XL: 155 };
 const BACKGROUNDS = { shadow: "Shadow", box: "Box" };
 export const DELAY_STEP = 0.1;
-
-const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 export function initSubtitleMenu({ button, menu, subs, onAddFile }) {
   const style = { size: load("subSize", "M"), background: load("subBackground", "shadow") };

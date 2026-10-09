@@ -82,6 +82,7 @@
             <span><kbd>←</kbd><kbd>→</kbd> seek</span>
             <span><kbd>F</kbd> fullscreen</span>
             <span><kbd>C</kbd> subtitles</span>
+            <span><kbd>A</kbd> audio</span>
             <span><kbd>G</kbd><kbd>H</kbd> sub delay</span>
           </span>
         </button>
@@ -112,6 +113,7 @@
             </div>
             <div class="group">
               <button class="pill-btn" id="speedBtn" title="Playback speed">1×</button>
+              <button class="icon-btn" id="audioBtn" title="Audio track (A)" data-icon="headphones" hidden></button>
               <button class="icon-btn" id="ccBtn" title="Subtitles (C)" data-icon="captions"></button>
               <button class="icon-btn" id="pipBtn" title="Picture in picture" data-icon="pip"></button>
               <button class="icon-btn" id="fsBtn" title="Fullscreen (F)" data-icon="maximize"></button>
@@ -120,6 +122,7 @@
         </div>
 
         <div class="menu" id="speedMenu" hidden></div>
+        <div class="menu menu-wide" id="audioMenu" hidden></div>
         <div class="menu menu-wide" id="subMenu" hidden></div>
       </main>
 
