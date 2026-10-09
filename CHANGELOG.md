@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- Installable app (PWA) at [alisky1223.github.io/CueBox](https://alisky1223.github.io/CueBox/). It works offline and opens `.mkv`, `.mp4` and `.webm` files from the OS.
+
 ## [0.2.0] - 2026-10-09
 
 ### Added
