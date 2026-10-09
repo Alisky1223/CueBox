@@ -13,6 +13,7 @@
 - **Embedded subtitles turn on automatically.** Text subtitle tracks (SRT/ASS/SSA/WebVTT) inside MKV/WebM files are read in the browser and shown at once, with no ffmpeg needed.
 - **Add your own subtitles.** Load `.srt`, `.vtt`, `.ass` or `.ssa` files. Persian/Arabic files saved in Windows-1256 instead of UTF-8 also work.
 - **Switch or turn off subtitles.** Pick any track from the subtitle menu, or choose **Off**. You can also change the subtitle size and background, and shift timing when subtitles are out of sync.
+- **Switch audio tracks.** Videos with several audio tracks (for example, multiple dubs) get an audio menu. In MKV/WebM files, CueBox reads the chosen track itself, so this works in Chrome and Edge without any flags.
 - **A polished player.** It has a dark cinematic theme, a seek bar that previews the time, speed control, picture-in-picture and fullscreen. Controls hide on their own while the video plays.
 - **100% offline.** Nothing is uploaded and there's nothing to install. The build is a single HTML file.
 
@@ -33,6 +34,7 @@ Download `index.html` from the latest [CI run](https://github.com/Alisky1223/Cue
 | `M`           | Mute                    |
 | `F`           | Fullscreen              |
 | `C`           | Cycle subtitle tracks   |
+| `A`           | Cycle audio tracks      |
 | `G` / `H`     | Subtitle delay −/+ 0.1s |
 | `O`           | Open video              |
 
@@ -53,6 +55,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and project layout.
 
 - Image-based subtitles (PGS, VobSub) aren't supported.
 - Subtitles embedded in MP4 files aren't extracted. Load them with **Add subtitle** instead.
+- Audio tracks can only be switched in MKV/WebM files, unless your browser supports `audioTracks` (Safari does). The chosen track must use a codec your browser can play: AAC, Opus, Vorbis, MP3 and FLAC work, but Chrome can't play AC3/E-AC3/DTS. Switching to a track loads it into memory, which takes a few seconds for large files.
 - Whether a video plays depends on your browser's codecs. HEVC/x265, for example, needs hardware decoding support.
 
 ## License
