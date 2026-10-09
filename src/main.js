@@ -2,6 +2,7 @@ import "./style.css";
 import { extractMkvSubs } from "./mkv/extract.js";
 import { AudioTracks } from "./player/audio.js";
 import { SubtitleManager } from "./player/subtitles.js";
+import { HEVC_HELP, canDecodeHevc, detectVideoCodec } from "./player/video-codec.js";
 import { SUBTITLE_FILE, decodeText, parseSubtitleFile } from "./subtitles/parsers.js";
 import { initAudioMenu } from "./ui/audio-menu.js";
 import { initControls } from "./ui/controls.js";
@@ -27,6 +28,7 @@ initSubtitleMenu({ button: $("ccBtn"), menu: $("subMenu"), subs, onAddFile: () =
 
 let videoUrl = null;
 let scan = null;
+let codec = { hevc: false, warned: false, ready: Promise.resolve() };
 
 const pickVideo = () => videoInput.click();
 $("openBtn").onclick = pickVideo;
@@ -84,6 +86,16 @@ function openVideo(file) {
   $("title").title = file.name;
   document.title = `${file.name} – CueBox`;
 
+  const current = (codec = { hevc: false, warned: false });
+  current.ready = detectVideoCodec(file)
+    .then((kind) => {
+      if (current !== codec || kind !== "hevc") return;
+      current.hevc = true;
+      const noFrames = video.readyState >= HTMLMediaElement.HAVE_METADATA && !video.videoWidth;
+      if (!canDecodeHevc(video) || noFrames) warnHevc();
+    })
+    .catch((err) => console.error(err));
+
   if (/\.(mkv|mka|webm)$/i.test(file.name)) {
     audio.loadMkv(file).catch((err) => console.error(err));
     const { signal } = scan;
@@ -94,8 +106,23 @@ function openVideo(file) {
   }
 }
 
-video.addEventListener("error", () => {
+function warnHevc() {
+  if (codec.warned) return;
+  codec.warned = true;
+  toast(HEVC_HELP, { type: "error", duration: 15000 });
+}
+
+// Chrome without an HEVC decoder plays the audio and leaves the picture black instead of failing.
+video.addEventListener("loadedmetadata", () => {
+  if (codec.hevc && !video.videoWidth) warnHevc();
+});
+
+video.addEventListener("error", async () => {
   if (!video.src) return;
+  const current = codec;
+  await current.ready;
+  if (current !== codec) return;
+  if (current.hevc) return warnHevc();
   toast("This video can't be played. Its codec may not be supported by your browser.", {
     type: "error",
     duration: 6000,

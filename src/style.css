@@ -833,6 +833,10 @@ video::-webkit-media-text-track-container {
   min-width: 0;
 }
 
+.toast-text {
+  white-space: pre-line;
+}
+
 .toast-progress {
   height: 3px;
   margin-top: 8px;
