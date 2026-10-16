@@ -24,3 +24,18 @@ jobs:
         with:
           name: cuebox
           path: dist/index.html
+
+  # main only takes release merges from develop; enforced as a required check on main.
+  main-source:
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: PRs into main must come from develop
+        run: |
+          if [ "$HEAD_REF" != "develop" ] || [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            echo "::error::PRs into main must come from develop in this repo (got $HEAD_REPO:$HEAD_REF)"
+            exit 1
+          fi
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
