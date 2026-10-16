@@ -1,5 +1,8 @@
-// Beyond SEEK_DRIFT a player jumps to its partner's time.
+// Beyond these drifts a player jumps to its partner's time. Heartbeats tolerate more, since every jump stutters;
+// a partner's own action is already a jump, so it's matched closely.
 export const SEEK_DRIFT = 0.5;
+const ACTION_DRIFT = 0.15;
+const PAUSED_DRIFT = 0.05;
 export const HEARTBEAT_MS = 2000;
 const PING_MS = 5000;
 // Local events this soon after applying a remote state are taken as its echo, and heartbeats this soon
@@ -83,10 +86,10 @@ export class SyncSession {
         if (this.leader && this.media.ready) this.send(this.state("state"));
         break;
       case "state":
-        this.apply(msg);
+        this.apply(msg, msg.playing ? ACTION_DRIFT : PAUSED_DRIFT);
         break;
       case "tick":
-        if (this.now() - this.lastLocal > SETTLE_MS && !this.media.seeking) this.apply(msg);
+        if (this.now() - this.lastLocal > SETTLE_MS && !this.media.seeking) this.apply(msg, SEEK_DRIFT);
         break;
       case "ping":
         this.send({ t: "pong", sent: msg.sent });
@@ -116,7 +119,7 @@ export class SyncSession {
     this.send({ t: "ping", sent: this.now() });
   }
 
-  apply({ playing, time, rate }) {
+  apply({ playing, time, rate }, maxDrift) {
     const m = this.media;
     if (!m.ready) return;
     const target = Math.min(time + (playing ? (this.latency / 1000) * rate : 0), m.duration);
@@ -124,7 +127,7 @@ export class SyncSession {
     this.applying = true;
     try {
       if (m.rate !== rate) m.setRate(rate);
-      if (Math.abs(m.time - target) > SEEK_DRIFT) m.seek(target);
+      if (Math.abs(m.time - target) > maxDrift) m.seek(target);
       if (playing && !m.playing) m.play();
       else if (!playing && m.playing) m.pause();
     } finally {

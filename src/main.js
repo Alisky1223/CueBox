@@ -9,6 +9,7 @@ import { initControls } from "./ui/controls.js";
 import { formatDelay } from "./ui/format.js";
 import { renderIcons } from "./ui/icons.js";
 import { closeMenus } from "./ui/menu.js";
+import { initPartyMenu } from "./ui/party-menu.js";
 import { DELAY_STEP, initSubtitleMenu } from "./ui/subtitle-menu.js";
 import { progressToast, toast } from "./ui/toast.js";
 
@@ -25,6 +26,7 @@ const controls = initControls({ stage, video });
 const audio = new AudioTracks(video);
 initAudioMenu({ button: $("audioBtn"), menu: $("audioMenu"), audio, onSelect: switchAudio });
 initSubtitleMenu({ button: $("ccBtn"), menu: $("subMenu"), subs, onAddFile: () => subInput.click() });
+initPartyMenu({ button: $("partyBtn"), menu: $("partyMenu"), video });
 
 let videoUrl = null;
 let scan = null;

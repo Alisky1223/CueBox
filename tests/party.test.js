@@ -150,6 +150,20 @@ describe("SyncSession", () => {
     expect(seek).not.toHaveBeenCalled();
   });
 
+  it("lines up exactly on a partner's pause", () => {
+    const p = pair();
+    p.host.start();
+    p.guest.start();
+    p.hostMedia.play();
+    p.flush();
+    p.advance(HEARTBEAT_MS * 2);
+    p.guestMedia.time += 0.3;
+    p.hostMedia.pause();
+    p.flush();
+    expect(p.guestMedia.playing).toBe(false);
+    expect(p.guestMedia.time).toBeCloseTo(p.hostMedia.time, 2);
+  });
+
   it("does nothing until the video is loaded", () => {
     const p = pair();
     p.guestMedia.ready = false;
