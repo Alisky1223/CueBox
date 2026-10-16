@@ -15,7 +15,8 @@
 - **Switch or turn off subtitles.** Pick any track from the subtitle menu, or choose **Off**. You can also change the subtitle size and background, and shift timing when subtitles are out of sync.
 - **Switch audio tracks.** Videos with several audio tracks (for example, multiple dubs) get an audio menu. In MKV/WebM files, CueBox reads the chosen track itself, so this works in Chrome and Edge without any flags.
 - **A polished player.** It has a dark cinematic theme, a seek bar that previews the time, speed control, picture-in-picture and fullscreen. Controls hide on their own while the video plays.
-- **100% offline.** Nothing is uploaded and there's nothing to install. The build is a single HTML file.
+- **Watch together.** Pair with someone on another device using a short code, and play, pause, seeking and speed stay in sync. Each of you plays your own copy of the video.
+- **100% offline.** Nothing is uploaded and there's nothing to install. The build is a single HTML file. Only **Watch together** needs internet, and it sends playback commands only, never your video.
 
 ## Usage
 
@@ -47,6 +48,14 @@ CueBox gets a home-screen icon and opens full screen. Tap the folder button to p
 Download `CueBox.html` from the [latest release](https://github.com/Alisky1223/CueBox/releases/latest), or build it yourself (see below). Then open it in Chrome or Edge. Double-clicking it works, with no server needed.
 
 > The `index.html` in the repo root is the development source and won't run when opened directly. Use `dist/index.html` or `pnpm dev` instead.
+
+### Watch together
+
+1. You and your partner each open your own copy of the same video.
+2. One of you clicks the **Watch together** button (two people) in the player controls, then **Create a code**, and sends the code to the other person.
+3. The other person opens **Watch together**, types the code and clicks **Join**.
+
+From then on, play, pause, seeking and speed changes on either side apply to both players. CueBox warns you if the two videos have different lengths. Pairing goes through the free public [PeerJS](https://peerjs.com) server; after that, the two browsers talk directly whenever the network allows.
 
 ### Keyboard shortcuts
 
@@ -85,6 +94,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and project layout.
 - iPhone and iPad can't play MKV files at all, so only MP4 and WebM work there. Android plays MKV.
 - Subtitle and audio track extraction reads the whole file, which can be slow for large MKVs on phones with little memory.
 - Whether a video plays depends on your browser's codecs. HEVC/x265 needs a GPU that can decode HEVC, with hardware acceleration turned on. Edge also needs [HEVC Video Extensions](https://apps.microsoft.com/detail/9nmzlz57r3t7) from the Microsoft Store. CueBox detects HEVC files it can't play and tells you how to fix it.
+- **Watch together** needs an internet connection and relies on the free PeerJS cloud server, which has no uptime guarantee. Some strict corporate or mobile networks can block the connection.
 
 ## License
 
