@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Watch together**: pair with someone on another device using a short code. Play, pause, seeking and speed stay in sync while each of you plays your own copy of the video. Needs internet; only playback commands are sent.
+
 ## [0.3.0] - 2026-10-09
 
 ### Added

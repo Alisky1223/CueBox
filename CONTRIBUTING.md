@@ -62,6 +62,8 @@ Only the maintainer ([@Alisky1223](https://github.com/Alisky1223)) can merge. Fo
 | `src/player/subtitles.js`  | Subtitle track state: selection, delay, cues            |
 | `src/player/audio.js`      | Audio track switching: native API or synced sidecar     |
 | `src/ui/`                  | Controls, menus, toasts, icons, formatting              |
+| `src/party/sync.js`        | Watch together: playback sync over messages (no DOM)    |
+| `src/party/link.js`        | Watch together: PeerJS pairing by short code            |
 | `src/mkv/ebml.js`          | Low-level EBML reading (vints, elements, blob reader)   |
 | `src/mkv/scan.js`          | Matroska walker: tracks, then blocks of chosen tracks   |
 | `src/mkv/extract.js`       | Matroska subtitle track and cue extraction (no DOM)     |
