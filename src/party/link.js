@@ -5,8 +5,11 @@ import { makeCode } from "./code.js";
 const PREFIX = "cuebox-";
 const JOIN_TIMEOUT_MS = 20000;
 const RECONNECT_MS = 3000;
+// Gives the "full" notice time to arrive before the connection closes.
+const FULL_CLOSE_MS = 1000;
 
 const MESSAGES = {
+  full: "This code is already in use by two people.",
   "peer-unavailable": "No one is waiting with that code. Check it and try again.",
   network: "Can't reach the pairing server. Check your internet connection.",
   "server-error": "The pairing server isn't responding. Try again in a moment.",
@@ -14,6 +17,8 @@ const MESSAGES = {
   "browser-incompatible": "This browser doesn't support Watch together.",
   webrtc: "Couldn't connect to your partner. Your network may be blocking it.",
 };
+
+const linkError = (type) => Object.assign(new Error(MESSAGES[type]), { type });
 
 export function describeError(err) {
   return MESSAGES[err?.type] ?? err?.message ?? "Connection failed.";
@@ -55,38 +60,53 @@ export class PartyLink {
       }
     }
     this.peer.on("connection", (conn) => {
-      // Only one partner at a time; a returning partner replaces a dropped connection.
-      if (this.connected) return conn.on("open", () => conn.close());
-      this.attach(conn);
+      // Two people per party: a joining or joined partner holds the spot until they drop, then it's free for a rejoin.
+      if (this.conn) {
+        conn.once("open", () => {
+          conn.send({ t: "full" });
+          setTimeout(() => conn.close(), FULL_CLOSE_MS);
+        });
+        return;
+      }
+      // Registered before attach() so the welcome goes out ahead of the session's first messages.
+      conn.once("open", () => conn.send({ t: "welcome" }));
+      this.attach(conn, { awaitWelcome: false });
+      setTimeout(() => {
+        if (this.conn !== conn || conn.open) return;
+        this.conn = null;
+        conn.close();
+      }, JOIN_TIMEOUT_MS);
     });
     return this.code;
   }
 
-  /** Resolves once connected to the host waiting under `code`. */
+  /** Resolves once the host waiting under `code` has let us in. */
   async join(code) {
     await this.openPeer();
     const peer = this.peer;
     const conn = peer.connect(PREFIX + code, { reliable: true, serialization: "json" });
     this.code = code;
     await new Promise((resolve, reject) => {
-      const fail = (err) => {
+      const settle = () => {
         clearTimeout(timer);
-        conn.off("open", done);
+        peer.off("error", fail);
+        conn.off("data", onData);
+      };
+      const fail = (err) => {
+        settle();
         this.leave();
         reject(err);
       };
-      const done = () => {
-        clearTimeout(timer);
-        peer.off("error", fail);
+      const onData = (msg) => {
+        if (msg?.t === "full") return fail(linkError("full"));
+        if (msg?.t !== "welcome") return;
+        settle();
         resolve();
       };
-      const timer = setTimeout(
-        () => fail(Object.assign(new Error(MESSAGES.webrtc), { type: "webrtc" })),
-        JOIN_TIMEOUT_MS,
-      );
+      const timer = setTimeout(() => fail(linkError("webrtc")), JOIN_TIMEOUT_MS);
       peer.once("error", fail);
-      conn.once("open", done);
-      this.attach(conn);
+      this.attach(conn, { awaitWelcome: true });
+      conn.on("data", onData);
     });
   }
 
@@ -126,13 +146,16 @@ export class PartyLink {
     });
   }
 
-  attach(conn) {
+  /** The guest counts as connected only once the host welcomes it, since a full party turns it away after connecting. */
+  attach(conn, { awaitWelcome }) {
     this.conn = conn;
     conn.on("open", () => {
-      if (this.conn === conn) this.handlers.onOpen();
+      if (this.conn === conn && !awaitWelcome) this.handlers.onOpen();
     });
     conn.on("data", (msg) => {
-      if (this.conn === conn) this.handlers.onMessage(msg);
+      if (this.conn !== conn) return;
+      if (msg?.t === "welcome") this.handlers.onOpen();
+      else if (msg?.t !== "full") this.handlers.onMessage(msg);
     });
     conn.on("close", () => {
       if (this.conn !== conn) return;
