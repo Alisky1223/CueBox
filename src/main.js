@@ -1,6 +1,7 @@
 import "./style.css";
 import { extractMkvSubs } from "./mkv/extract.js";
 import { AudioTracks } from "./player/audio.js";
+import { nameFromUrl, openRemoteFile } from "./player/remote-file.js";
 import { SubtitleManager } from "./player/subtitles.js";
 import { HEVC_HELP, canDecodeHevc, detectVideoCodec } from "./player/video-codec.js";
 import { SUBTITLE_FILE, decodeText, parseSubtitleFile } from "./subtitles/parsers.js";
@@ -8,6 +9,7 @@ import { initAudioMenu } from "./ui/audio-menu.js";
 import { initControls } from "./ui/controls.js";
 import { formatDelay } from "./ui/format.js";
 import { renderIcons } from "./ui/icons.js";
+import { initLinkForms } from "./ui/link-form.js";
 import { closeMenus } from "./ui/menu.js";
 import { initPartyMenu } from "./ui/party-menu.js";
 import { DELAY_STEP, initSubtitleMenu } from "./ui/subtitle-menu.js";
@@ -27,10 +29,17 @@ const audio = new AudioTracks(video);
 initAudioMenu({ button: $("audioBtn"), menu: $("audioMenu"), audio, onSelect: switchAudio });
 initSubtitleMenu({ button: $("ccBtn"), menu: $("subMenu"), subs, onAddFile: () => subInput.click() });
 initPartyMenu({ button: $("partyBtn"), menu: $("partyMenu"), video });
+const linkForms = initLinkForms({
+  button: $("linkBtn"),
+  dialog: $("linkDialog"),
+  inline: $("linkForm"),
+  isEmpty: () => app.classList.contains("is-empty"),
+  onSubmit: openLink,
+});
 
 let videoUrl = null;
 let scan = null;
-let codec = { hevc: false, warned: false, ready: Promise.resolve() };
+let codec = { hevc: false, warned: false, link: false, ready: Promise.resolve() };
 
 const pickVideo = () => videoInput.click();
 $("openBtn").onclick = pickVideo;
@@ -85,33 +94,56 @@ function openFiles(files) {
 }
 
 // ----- opening media -----
-function openVideo(file) {
+const isMatroska = (name) => /\.(mkv|mka|webm)$/i.test(name);
+
+/** Resets per-video state and starts playing `src`. Returns the new video's codec state. */
+function startVideo(src, name, { link = false } = {}) {
   scan?.abort();
   scan = new AbortController();
   closeMenus();
   subs.reset();
   audio.reset();
   if (videoUrl) URL.revokeObjectURL(videoUrl);
-  videoUrl = URL.createObjectURL(file);
-  video.src = videoUrl;
+  videoUrl = link ? null : src;
+  video.src = src;
   video.play().catch(() => {});
 
   app.classList.remove("is-empty");
-  $("title").textContent = file.name;
-  $("title").title = file.name;
-  document.title = `${file.name} – CueBox`;
+  $("title").textContent = name;
+  $("title").title = link ? src : name;
+  document.title = `${name} – CueBox`;
+  return (codec = { hevc: false, warned: false, link, ready: Promise.resolve() });
+}
 
-  const current = (codec = { hevc: false, warned: false });
-  current.ready = detectVideoCodec(file)
-    .then((kind) => {
-      if (current !== codec || kind !== "hevc") return;
-      current.hevc = true;
-      const noFrames = video.readyState >= HTMLMediaElement.HAVE_METADATA && !video.videoWidth;
-      if (!canDecodeHevc(video) || noFrames) warnHevc();
+function openVideo(file) {
+  const current = startVideo(URL.createObjectURL(file), file.name);
+  current.ready = inspectVideo(file, current);
+}
+
+// The <video> streams the link directly, which works with any server. Reading the file's bytes
+// (embedded subtitles, audio tracks, HEVC check) also needs the server to allow CORS range requests.
+function openLink(url) {
+  const name = nameFromUrl(url);
+  const current = startVideo(url, name, { link: true });
+  const { signal } = scan;
+  current.ready = openRemoteFile(url, { signal })
+    .then((file) => {
+      if (signal.aborted) return;
+      if (file) return inspectVideo(file, current);
+      if (isMatroska(name))
+        toast(
+          "This server doesn't let CueBox read the file, so embedded subtitles and audio tracks aren't available.",
+          {
+            duration: 6000,
+          },
+        );
     })
-    .catch((err) => console.error(err));
+    .catch((err) => !signal.aborted && console.error(err));
+}
 
-  if (/\.(mkv|mka|webm)$/i.test(file.name)) {
+/** Reads the file itself (local or linked) for embedded tracks. Resolves once its codec is known. */
+function inspectVideo(file, current) {
+  if (isMatroska(file.name)) {
     audio.loadMkv(file).catch((err) => console.error(err));
     const { signal } = scan;
     loadEmbeddedSubs(file, signal).catch((err) => {
@@ -119,6 +151,15 @@ function openVideo(file) {
       if (!signal.aborted) toast(`Subtitle scan failed: ${err.message}`, { type: "error" });
     });
   }
+
+  return detectVideoCodec(file)
+    .then((kind) => {
+      if (current !== codec || kind !== "hevc") return;
+      current.hevc = true;
+      const noFrames = video.readyState >= HTMLMediaElement.HAVE_METADATA && !video.videoWidth;
+      if (!canDecodeHevc(video) || noFrames) warnHevc();
+    })
+    .catch((err) => console.error(err));
 }
 
 function warnHevc() {
@@ -138,6 +179,11 @@ video.addEventListener("error", async () => {
   await current.ready;
   if (current !== codec) return;
   if (current.hevc) return warnHevc();
+  if (current.link)
+    return toast("Couldn't play this link. Make sure it points straight to a video file, not a web page.", {
+      type: "error",
+      duration: 6000,
+    });
   toast("This video can't be played. Its codec may not be supported by your browser.", {
     type: "error",
     duration: 6000,
@@ -237,6 +283,7 @@ document.addEventListener("keydown", (e) => {
     m: () => controls.toggleMute(),
     f: () => controls.toggleFullscreen(),
     o: () => pickVideo(),
+    u: () => linkForms.open(),
     c: () => {
       if (!subs.hasUsable) return controls.flash("captions", "No subtitles");
       const entry = subs.cycle();
