@@ -9,6 +9,7 @@ All notable changes to this project are documented here. The format is based on
 ### Added
 
 - **Play from a link**: paste a direct link to a video file on the start screen, or use **Open link** (`U`) in the top bar, and it streams right away. Embedded subtitles, audio tracks and the HEVC check also work when the server allows CueBox to read the file (CORS with range requests).
+- **Subtitle and audio from a link**: **Add subtitle from link…** in the subtitle menu and **Add audio from link…** in the audio menu (e.g. a separately hosted dub, played in sync with the video). Subtitle links need a server that allows CORS.
 
 ## [0.4.0] - 2026-10-16
 

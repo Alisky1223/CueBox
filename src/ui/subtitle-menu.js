@@ -7,7 +7,7 @@ const SIZES = { S: 80, M: 100, L: 125, XL: 155 };
 const BACKGROUNDS = { shadow: "Shadow", box: "Box" };
 export const DELAY_STEP = 0.1;
 
-export function initSubtitleMenu({ button, menu, subs, onAddFile }) {
+export function initSubtitleMenu({ button, menu, subs, onAddFile, onAddLink }) {
   const style = { size: load("subSize", "M"), background: load("subBackground", "shadow") };
   const styleEl = document.createElement("style");
   document.head.append(styleEl);
@@ -45,6 +45,9 @@ export function initSubtitleMenu({ button, menu, subs, onAddFile }) {
       <button class="menu-item menu-action" data-action="add">
         <span class="menu-check">${icon("plus")}</span><span class="menu-label">Add subtitle file…</span>
       </button>
+      <button class="menu-item menu-action" data-action="link">
+        <span class="menu-check">${icon("link")}</span><span class="menu-label">Add subtitle from link…</span>
+      </button>
       <div class="menu-sep"></div>
       <div class="menu-row">
         <span>Size</span>
@@ -79,6 +82,9 @@ export function initSubtitleMenu({ button, menu, subs, onAddFile }) {
     } else if (t.dataset.action === "add") {
       closeMenus();
       onAddFile();
+    } else if (t.dataset.action === "link") {
+      closeMenus();
+      onAddLink();
     } else if (t.dataset.size) {
       style.size = t.dataset.size;
       applyStyle();
