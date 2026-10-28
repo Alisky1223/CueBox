@@ -46,7 +46,7 @@ const linkForms = initLinkForms({
 let videoUrl = null;
 let pendingLink = null;
 let scan = null;
-let codec = { hevc: false, warned: false, link: false, ready: Promise.resolve() };
+let codec = { hevc: false, warned: false, link: false, cors: false, ready: Promise.resolve() };
 
 const pickVideo = () => videoInput.click();
 $("openBtn").onclick = pickVideo;
@@ -122,7 +122,7 @@ function startVideo(src, name, { link = false, cors = false } = {}) {
   $("title").textContent = name;
   $("title").title = link ? src : name;
   document.title = `${name} – CueBox`;
-  return (codec = { hevc: false, warned: false, link, ready: Promise.resolve() });
+  return (codec = { hevc: false, warned: false, link, cors, ready: Promise.resolve() });
 }
 
 function openVideo(file) {
@@ -314,7 +314,11 @@ function askAudioLink() {
     title: "Add audio from a link",
     action: "Add",
     placeholder: "https://example.com/dub.mka",
-    note: "Paste a direct link to an audio file (e.g. a dub). It plays in sync with the video.",
+    note:
+      "Paste a direct link to an audio file (e.g. a dub). It plays in sync with the video and works with any server." +
+      (codec.link && !codec.cors
+        ? " This video's server doesn't allow CORS, so once you switch to another audio track, the original sound comes back only after reopening the video."
+        : ""),
     onSubmit: (url) => switchAudio(audio.addLink(url, nameFromUrl(url))),
   });
 }
