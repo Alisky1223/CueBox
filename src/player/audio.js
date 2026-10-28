@@ -40,28 +40,39 @@ class SidecarAudio {
     this.gain.context.resume().catch(() => {});
   }
 
-  /** Resolves to true once the track is loaded and following the video, or false if aborted; rejects if the browser can't decode it. */
-  async attach(blob, signal) {
-    const url = URL.createObjectURL(blob);
+  /**
+   * Plays `source`, an extracted track (Blob) or a link the <audio> streams itself.
+   * Resolves to true once it's loaded and following the video, or false if aborted; rejects if it can't be loaded or decoded.
+   */
+  async attach(source, signal) {
+    const url = source instanceof Blob ? URL.createObjectURL(source) : source;
+    const release = () => url !== source && URL.revokeObjectURL(url);
     const audio = new Audio();
     audio.preload = "auto";
     try {
       await new Promise((resolve, reject) => {
         audio.addEventListener("loadedmetadata", resolve, { once: true });
-        audio.addEventListener("error", () => reject(new Error("unsupported audio codec")), { once: true });
+        audio.addEventListener(
+          "error",
+          () =>
+            reject(
+              new Error(url === source ? "couldn't load it, or its codec isn't supported" : "unsupported audio codec"),
+            ),
+          { once: true },
+        );
         audio.src = url;
       });
     } catch (err) {
-      URL.revokeObjectURL(url);
+      release();
       throw err;
     }
     if (signal.aborted) {
-      URL.revokeObjectURL(url);
+      release();
       return false;
     }
     this.detach();
     this.audio = audio;
-    this.url = url;
+    this.url = url === source ? null : url;
     this.gain.gain.value = 0;
     this.follow();
     return true;
@@ -73,7 +84,7 @@ class SidecarAudio {
     this.audio.pause();
     this.audio.removeAttribute("src");
     this.audio.load();
-    URL.revokeObjectURL(this.url);
+    if (this.url) URL.revokeObjectURL(this.url);
     this.audio = null;
     this.url = null;
   }
@@ -84,7 +95,8 @@ class SidecarAudio {
     audio.volume = video.volume;
     audio.muted = video.muted;
     const drift = audio.currentTime - video.currentTime;
-    if (Math.abs(drift) > MAX_DRIFT) audio.currentTime = video.currentTime;
+    // A streamed track can take a while to seek; jumping again meanwhile would restart its buffering.
+    if (Math.abs(drift) > MAX_DRIFT && !audio.seeking) audio.currentTime = video.currentTime;
     const nudge = Math.abs(drift) > NUDGE_DRIFT && Math.abs(drift) <= MAX_DRIFT ? -Math.sign(drift) * NUDGE_RATE : 0;
     audio.playbackRate = video.playbackRate * (1 + nudge);
     const playing = !video.paused && !video.seeking && video.readyState >= HAVE_FUTURE_DATA;
@@ -154,6 +166,17 @@ export class AudioTracks {
     this.emit();
   }
 
+  /** Adds a separately hosted track (e.g. a dub) played from `url`. Returns its index. */
+  addLink(url, label) {
+    if (!this.entries.length) {
+      this.entries.push({ label: "Original" });
+      this.active = 0;
+    }
+    this.entries.push({ label, url, codec: "Link" });
+    this.emit();
+    return this.entries.length - 1;
+  }
+
   /**
    * Switches to the track at `index`. Resolves to false if superseded by another switch or a new video.
    * @param {number} index
@@ -182,14 +205,14 @@ export class AudioTracks {
     this.pending = index;
     this.emit();
     try {
-      let blob = this.cache.get(index);
-      if (!blob) {
-        blob = await extractMkvTrack(this.file, this.entries[index].number, { signal, onProgress });
+      let source = this.entries[index].url ?? this.cache.get(index);
+      if (!source) {
+        source = await extractMkvTrack(this.file, this.entries[index].number, { signal, onProgress });
         if (signal.aborted) return false;
-        if (!blob) throw new Error("track not found");
-        this.cache.set(index, blob);
+        if (!source) throw new Error("track not found");
+        this.cache.set(index, source);
       }
-      if (!(await this.sidecar.attach(blob, signal))) return false;
+      if (!(await this.sidecar.attach(source, signal))) return false;
       this.active = index;
       return true;
     } catch (err) {

@@ -1,6 +1,7 @@
 import "./style.css";
 import { extractMkvSubs } from "./mkv/extract.js";
 import { AudioTracks } from "./player/audio.js";
+import { allowsCors, nameFromUrl, openRemoteFile } from "./player/remote-file.js";
 import { SubtitleManager } from "./player/subtitles.js";
 import { HEVC_HELP, canDecodeHevc, detectVideoCodec } from "./player/video-codec.js";
 import { SUBTITLE_FILE, decodeText, parseSubtitleFile } from "./subtitles/parsers.js";
@@ -8,6 +9,7 @@ import { initAudioMenu } from "./ui/audio-menu.js";
 import { initControls } from "./ui/controls.js";
 import { formatDelay } from "./ui/format.js";
 import { renderIcons } from "./ui/icons.js";
+import { initLinkForms } from "./ui/link-form.js";
 import { closeMenus } from "./ui/menu.js";
 import { initPartyMenu } from "./ui/party-menu.js";
 import { DELAY_STEP, initSubtitleMenu } from "./ui/subtitle-menu.js";
@@ -24,13 +26,27 @@ renderIcons();
 const subs = new SubtitleManager(video);
 const controls = initControls({ stage, video });
 const audio = new AudioTracks(video);
-initAudioMenu({ button: $("audioBtn"), menu: $("audioMenu"), audio, onSelect: switchAudio });
-initSubtitleMenu({ button: $("ccBtn"), menu: $("subMenu"), subs, onAddFile: () => subInput.click() });
+initAudioMenu({ button: $("audioBtn"), menu: $("audioMenu"), audio, onSelect: switchAudio, onAddLink: askAudioLink });
+initSubtitleMenu({
+  button: $("ccBtn"),
+  menu: $("subMenu"),
+  subs,
+  onAddFile: () => subInput.click(),
+  onAddLink: askSubtitleLink,
+});
 initPartyMenu({ button: $("partyBtn"), menu: $("partyMenu"), video });
+const linkForms = initLinkForms({
+  button: $("linkBtn"),
+  dialog: $("linkDialog"),
+  inline: $("linkForm"),
+  isEmpty: () => app.classList.contains("is-empty"),
+  onSubmit: openLink,
+});
 
 let videoUrl = null;
+let pendingLink = null;
 let scan = null;
-let codec = { hevc: false, warned: false, ready: Promise.resolve() };
+let codec = { hevc: false, warned: false, link: false, cors: false, ready: Promise.resolve() };
 
 const pickVideo = () => videoInput.click();
 $("openBtn").onclick = pickVideo;
@@ -85,24 +101,72 @@ function openFiles(files) {
 }
 
 // ----- opening media -----
-function openVideo(file) {
+const isMatroska = (name) => /\.(mkv|mka|webm)$/i.test(name);
+
+/** Resets per-video state and starts playing `src`. Returns the new video's codec state. */
+function startVideo(src, name, { link = false, cors = false } = {}) {
+  pendingLink = null;
   scan?.abort();
   scan = new AbortController();
   closeMenus();
   subs.reset();
   audio.reset();
   if (videoUrl) URL.revokeObjectURL(videoUrl);
-  videoUrl = URL.createObjectURL(file);
-  video.src = videoUrl;
+  videoUrl = link ? null : src;
+  if (cors) video.crossOrigin = "anonymous";
+  else video.removeAttribute("crossorigin");
+  video.src = src;
   video.play().catch(() => {});
 
   app.classList.remove("is-empty");
-  $("title").textContent = file.name;
-  $("title").title = file.name;
-  document.title = `${file.name} – CueBox`;
+  $("title").textContent = name;
+  $("title").title = link ? src : name;
+  document.title = `${name} – CueBox`;
+  return (codec = { hevc: false, warned: false, link, cors, ready: Promise.resolve() });
+}
 
-  const current = (codec = { hevc: false, warned: false });
-  current.ready = detectVideoCodec(file)
+function openVideo(file) {
+  const current = startVideo(URL.createObjectURL(file), file.name);
+  current.ready = inspectVideo(file, current);
+}
+
+// The <video> streams the link directly, which works with any server. Reading the file's bytes
+// (audio tracks, HEVC check) also needs the server to allow CORS range requests. Embedded subtitles aren't
+// scanned for links: they're spread through the whole file, so finding them means downloading all of it.
+// When it allows CORS the video is loaded in CORS mode, else Web Audio (used to swap in another audio track) only gets silence from it.
+async function openLink(url) {
+  const name = nameFromUrl(url);
+  const token = (pendingLink = {});
+  const cors = await allowsCors(url, { signal: AbortSignal.timeout(5000) }).catch(() => false);
+  if (token !== pendingLink) return;
+  const current = startVideo(url, name, { link: true, cors });
+  const { signal } = scan;
+  current.ready = openRemoteFile(url, { signal })
+    .then((file) => {
+      if (signal.aborted) return;
+      if (file) return inspectVideo(file, current);
+      if (isMatroska(name))
+        toast("This server doesn't let CueBox read the file, so embedded audio tracks aren't available.", {
+          duration: 6000,
+        });
+    })
+    .catch((err) => !signal.aborted && console.error(err));
+}
+
+/** Reads the file itself (local or linked) for embedded tracks. Resolves once its codec is known. */
+function inspectVideo(file, current) {
+  if (isMatroska(file.name)) {
+    audio.loadMkv(file).catch((err) => console.error(err));
+    if (!current.link) {
+      const { signal } = scan;
+      loadEmbeddedSubs(file, signal).catch((err) => {
+        console.error(err);
+        if (!signal.aborted) toast(`Subtitle scan failed: ${err.message}`, { type: "error" });
+      });
+    }
+  }
+
+  return detectVideoCodec(file)
     .then((kind) => {
       if (current !== codec || kind !== "hevc") return;
       current.hevc = true;
@@ -110,15 +174,6 @@ function openVideo(file) {
       if (!canDecodeHevc(video) || noFrames) warnHevc();
     })
     .catch((err) => console.error(err));
-
-  if (/\.(mkv|mka|webm)$/i.test(file.name)) {
-    audio.loadMkv(file).catch((err) => console.error(err));
-    const { signal } = scan;
-    loadEmbeddedSubs(file, signal).catch((err) => {
-      console.error(err);
-      if (!signal.aborted) toast(`Subtitle scan failed: ${err.message}`, { type: "error" });
-    });
-  }
 }
 
 function warnHevc() {
@@ -138,6 +193,11 @@ video.addEventListener("error", async () => {
   await current.ready;
   if (current !== codec) return;
   if (current.hevc) return warnHevc();
+  if (current.link)
+    return toast("Couldn't play this link. Make sure it points straight to a video file, not a web page.", {
+      type: "error",
+      duration: 6000,
+    });
   toast("This video can't be played. Its codec may not be supported by your browser.", {
     type: "error",
     duration: 6000,
@@ -209,13 +269,58 @@ async function switchAudio(index) {
 
 async function addSubtitleFile(file) {
   if (!video.src) return toast("Open a video first, then add subtitles.", { type: "error" });
-  const text = decodeText(new Uint8Array(await file.arrayBuffer()));
-  const cues = parseSubtitleFile(file.name, text);
-  if (!cues.length) return toast(`No subtitles found in ${file.name}`, { type: "error" });
-  const entry = subs.add(file.name, { source: "file" });
+  addSubtitles(file.name, new Uint8Array(await file.arrayBuffer()));
+}
+
+function addSubtitles(name, bytes) {
+  const cues = parseSubtitleFile(name, decodeText(bytes));
+  if (!cues.length) return toast(`No subtitles found in ${name}`, { type: "error" });
+  const entry = subs.add(name, { source: "file" });
   for (const c of cues) subs.addCue(entry, c.start, c.end, c.text);
   subs.select(subs.entries.length - 1);
-  toast(`Loaded ${file.name}`, { type: "success" });
+  toast(`Loaded ${name}`, { type: "success" });
+}
+
+// fetch() rejects with a TypeError when the server doesn't allow CORS (or can't be reached).
+const linkError = (err) => (err instanceof TypeError ? "the server doesn't allow it (CORS)" : err.message);
+
+function askSubtitleLink() {
+  linkForms.ask({
+    title: "Add subtitle from a link",
+    action: "Add",
+    placeholder: "https://example.com/subtitle.srt",
+    note: "Paste a direct link to an .srt, .vtt, .ass or .ssa file. The server must allow CORS.",
+    onSubmit: addSubtitleLink,
+  });
+}
+
+async function addSubtitleLink(url) {
+  const name = nameFromUrl(url);
+  const current = codec;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (current === codec) addSubtitles(name, bytes);
+  } catch (err) {
+    console.error(err);
+    toast(`Couldn't load ${name}: ${linkError(err)}`, { type: "error", duration: 6000 });
+  }
+}
+
+function askAudioLink() {
+  if (!video.src) return toast("Open a video first, then add audio.", { type: "error" });
+  linkForms.ask({
+    title: "Add audio from a link",
+    action: "Add",
+    placeholder: "https://example.com/dub.mka",
+    note:
+      "Paste a direct link to an audio file (e.g. a dub). It plays in sync with the video and works with any server." +
+      (codec.link && !codec.cors
+        ? " This video's server doesn't allow CORS, so once you switch to another audio track, the original sound comes back only after reopening the video."
+        : ""),
+    onSubmit: (url) => switchAudio(audio.addLink(url, nameFromUrl(url))),
+  });
 }
 
 // ----- keyboard -----
@@ -237,6 +342,7 @@ document.addEventListener("keydown", (e) => {
     m: () => controls.toggleMute(),
     f: () => controls.toggleFullscreen(),
     o: () => pickVideo(),
+    u: () => linkForms.open(),
     c: () => {
       if (!subs.hasUsable) return controls.flash("captions", "No subtitles");
       const entry = subs.cycle();

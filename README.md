@@ -10,13 +10,14 @@
 ## Features
 
 - **Open any local video.** Use the file picker or drag and drop the file onto the page.
+- **Play from a link.** Paste a direct link to a video file and it streams without downloading the whole file first.
 - **Embedded subtitles turn on automatically.** Text subtitle tracks (SRT/ASS/SSA/WebVTT) inside MKV/WebM files are read in the browser and shown at once, with no ffmpeg needed.
 - **Add your own subtitles.** Load `.srt`, `.vtt`, `.ass` or `.ssa` files. Persian/Arabic files saved in Windows-1256 instead of UTF-8 also work.
 - **Switch or turn off subtitles.** Pick any track from the subtitle menu, or choose **Off**. You can also change the subtitle size and background, and shift timing when subtitles are out of sync.
 - **Switch audio tracks.** Videos with several audio tracks (for example, multiple dubs) get an audio menu. In MKV/WebM files, CueBox reads the chosen track itself, so this works in Chrome and Edge without any flags.
 - **A polished player.** It has a dark cinematic theme, a seek bar that previews the time, speed control, picture-in-picture and fullscreen. Controls hide on their own while the video plays.
 - **Watch together.** Pair with someone on another device using a short code, and play, pause, seeking and speed stay in sync. Each of you plays your own copy of the video.
-- **100% offline.** Nothing is uploaded and there's nothing to install. The build is a single HTML file. Only **Watch together** needs internet, and it sends playback commands only, never your video.
+- **100% offline.** Nothing is uploaded and there's nothing to install. The build is a single HTML file. Only **Watch together** and **Play from a link** need internet, and nothing of yours is ever sent anywhere.
 
 ## Usage
 
@@ -49,6 +50,17 @@ Download `CueBox.html` from the [latest release](https://github.com/Alisky1223/C
 
 > The `index.html` in the repo root is the development source and won't run when opened directly. Use `dist/index.html` or `pnpm dev` instead.
 
+### Play from a link
+
+Paste a link into the box under **Drop a video here** and press **Play**. While a video is open, use **Open link** in the top bar or press `U`.
+
+- The link must point straight to a video file (for example `https://example.com/movie.mp4`), not a web page such as YouTube.
+- The video plays as a stream, so it starts right away.
+- Embedded subtitles aren't loaded from links, since finding them means downloading the whole file. Add a subtitle file or a subtitle link instead.
+- **Add subtitle from link…** (subtitle menu) needs a server that allows CORS. **Add audio from link…** (audio menu) plays a separate audio file, such as a dub, in sync with the video from any server. If the video's own server doesn't allow CORS, its original sound comes back only after reopening the video.
+- Audio-track switching and the HEVC warning need to read the file itself. That works only if the server allows it ([CORS](https://developer.mozilla.org/docs/Web/HTTP/CORS) with range requests). Otherwise the video still plays.
+- The online version runs over https, so `http://` links may be blocked by the browser.
+
 ### Watch together
 
 1. You and your partner each open your own copy of the same video.
@@ -71,6 +83,7 @@ From then on, play, pause, seeking and speed changes on either side apply to bot
 | `A`           | Cycle audio tracks      |
 | `G` / `H`     | Subtitle delay −/+ 0.1s |
 | `O`           | Open video              |
+| `U`           | Play from a link        |
 
 ## Development
 

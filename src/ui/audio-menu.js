@@ -2,7 +2,9 @@ import { escapeHtml } from "./format.js";
 import { icon } from "./icons.js";
 import { closeMenus, toggleMenu } from "./menu.js";
 
-export function initAudioMenu({ button, menu, audio, onSelect }) {
+export function initAudioMenu({ button, menu, audio, onSelect, onAddLink }) {
+  // Linked tracks play through the sidecar, which browsers with native audioTracks don't use.
+  const canAddLink = !audio.native;
   const render = () => {
     menu.innerHTML = `<div class="menu-title">Audio</div>${audio.entries
       .map((e, i) => {
@@ -13,17 +15,24 @@ export function initAudioMenu({ button, menu, audio, onSelect }) {
           ${tag ? `<span class="menu-tag">${escapeHtml(tag)}</span>` : ""}
         </button>`;
       })
-      .join("")}`;
-    const hidden = audio.entries.length < 2;
+      .join("")}${
+      canAddLink
+        ? `<button class="menu-item menu-action" data-action="link">
+          <span class="menu-check">${icon("link")}</span><span class="menu-label">Add audio from link…</span>
+        </button>`
+        : ""
+    }`;
+    const hidden = !canAddLink && audio.entries.length < 2;
     if (hidden && !menu.hidden) closeMenus();
     button.hidden = hidden;
   };
 
   menu.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-track]");
+    const t = e.target.closest("[data-track], [data-action]");
     if (!t) return;
     closeMenus();
-    onSelect(Number(t.dataset.track));
+    if (t.dataset.action === "link") onAddLink();
+    else onSelect(Number(t.dataset.track));
   });
 
   button.onclick = () => toggleMenu(button, menu);
