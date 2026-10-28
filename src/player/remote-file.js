@@ -53,6 +53,18 @@ export class RemoteFile {
   }
 }
 
+/** Whether the page may read the link's response, checked with a plain GET so no CORS preflight is needed. */
+export async function allowsCors(url, { fetch = globalThis.fetch, signal } = {}) {
+  try {
+    const res = await fetch(url, { signal });
+    res.body?.cancel().catch(() => {});
+    return res.ok;
+  } catch (err) {
+    if (signal?.aborted) throw err;
+    return false;
+  }
+}
+
 /**
  * Checks whether the page may read the link's bytes: the server must allow CORS and support range requests.
  * Resolves to a RemoteFile, or null when it can only be streamed by the <video> element.

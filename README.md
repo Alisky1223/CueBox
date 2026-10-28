@@ -56,8 +56,9 @@ Paste a link into the box under **Drop a video here** and press **Play**. While 
 
 - The link must point straight to a video file (for example `https://example.com/movie.mp4`), not a web page such as YouTube.
 - The video plays as a stream, so it starts right away.
-- Embedded subtitles, audio-track switching and the HEVC warning need to read the file itself. That works only if the server allows it ([CORS](https://developer.mozilla.org/docs/Web/HTTP/CORS) with range requests). Otherwise the video still plays, and you can still add a subtitle file.
-- For MKV files, the subtitle scan reads the whole file over the network, alongside what the player downloads.
+- Embedded subtitles aren't loaded from links, since finding them means downloading the whole file. Add a subtitle file or a subtitle link instead.
+- **Add subtitle from link…** (subtitle menu) needs a server that allows CORS. **Add audio from link…** (audio menu) plays a separate audio file, such as a dub, in sync with the video from any server. If the video's own server doesn't allow CORS, its original sound comes back only after reopening the video.
+- Audio-track switching and the HEVC warning need to read the file itself. That works only if the server allows it ([CORS](https://developer.mozilla.org/docs/Web/HTTP/CORS) with range requests). Otherwise the video still plays.
 - The online version runs over https, so `http://` links may be blocked by the browser.
 
 ### Watch together

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { children, readUint } from "../src/mkv/ebml.js";
 import { codecName, extractMkvTrack, readMkvAudioTracks } from "../src/mkv/audio.js";
 import { ID, readMkvTracks } from "../src/mkv/scan.js";
+import { AudioTracks } from "../src/player/audio.js";
 import { blockGroup, mkv, simpleBlock } from "./helpers/mkv.js";
 
 const VIDEO = { number: 1, type: 0x01, codec: "V_MPEG4/ISO/AVC" };
@@ -105,5 +106,25 @@ describe("extractMkvTrack", () => {
       onProgress: () => controller.abort(),
     });
     expect(out).toBeNull();
+  });
+});
+
+describe("AudioTracks.addLink", () => {
+  const fakeVideo = () => ({ addEventListener() {} });
+
+  it("adds an Original entry first when the video's own tracks are unknown", () => {
+    const tracks = new AudioTracks(fakeVideo());
+    expect(tracks.addLink("https://x/dub.mka", "dub.mka")).toBe(1);
+    expect(tracks.entries).toEqual([
+      { label: "Original" },
+      { label: "dub.mka", url: "https://x/dub.mka", codec: "Link" },
+    ]);
+    expect(tracks.active).toBe(0);
+  });
+
+  it("appends after tracks read from the file", async () => {
+    const tracks = new AudioTracks(fakeVideo());
+    await tracks.loadMkv(fixture());
+    expect(tracks.addLink("https://x/dub.mka", "dub.mka")).toBe(2);
   });
 });

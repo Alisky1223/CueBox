@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readMkvTracks } from "../src/mkv/scan.js";
-import { RemoteFile, nameFromUrl, openRemoteFile, parseVideoUrl } from "../src/player/remote-file.js";
+import { RemoteFile, allowsCors, nameFromUrl, openRemoteFile, parseVideoUrl } from "../src/player/remote-file.js";
 import { mkv, simpleBlock } from "./helpers/mkv.js";
 
 /** A fetch that serves `bytes` like a CORS-enabled server with range support. */
@@ -41,6 +41,21 @@ describe("nameFromUrl", () => {
 
   it("falls back to the host name", () => {
     expect(nameFromUrl("https://example.com/")).toBe("example.com");
+  });
+});
+
+describe("allowsCors", () => {
+  it("checks with a plain GET, without a Range header", async () => {
+    const { fetch, requests } = rangeServer(bytes);
+    expect(await allowsCors("https://x/v.mkv", { fetch })).toBe(true);
+    expect(requests).toEqual([{ method: "GET", range: undefined }]);
+  });
+
+  it("is false when CORS blocks the request or the server errors", async () => {
+    expect(await allowsCors("https://x/v", { fetch: () => Promise.reject(new TypeError("Failed to fetch")) })).toBe(
+      false,
+    );
+    expect(await allowsCors("https://x/v", { fetch: async () => new Response(null, { status: 404 }) })).toBe(false);
   });
 });
 
