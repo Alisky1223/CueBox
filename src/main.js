@@ -131,7 +131,8 @@ function openVideo(file) {
 }
 
 // The <video> streams the link directly, which works with any server. Reading the file's bytes
-// (embedded subtitles, audio tracks, HEVC check) also needs the server to allow CORS range requests.
+// (audio tracks, HEVC check) also needs the server to allow CORS range requests. Embedded subtitles aren't
+// scanned for links: they're spread through the whole file, so finding them means downloading all of it.
 // When it allows CORS the video is loaded in CORS mode, else Web Audio (used to swap in another audio track) only gets silence from it.
 async function openLink(url) {
   const name = nameFromUrl(url);
@@ -145,12 +146,9 @@ async function openLink(url) {
       if (signal.aborted) return;
       if (file) return inspectVideo(file, current);
       if (isMatroska(name))
-        toast(
-          "This server doesn't let CueBox read the file, so embedded subtitles and audio tracks aren't available.",
-          {
-            duration: 6000,
-          },
-        );
+        toast("This server doesn't let CueBox read the file, so embedded audio tracks aren't available.", {
+          duration: 6000,
+        });
     })
     .catch((err) => !signal.aborted && console.error(err));
 }
@@ -159,11 +157,13 @@ async function openLink(url) {
 function inspectVideo(file, current) {
   if (isMatroska(file.name)) {
     audio.loadMkv(file).catch((err) => console.error(err));
-    const { signal } = scan;
-    loadEmbeddedSubs(file, signal).catch((err) => {
-      console.error(err);
-      if (!signal.aborted) toast(`Subtitle scan failed: ${err.message}`, { type: "error" });
-    });
+    if (!current.link) {
+      const { signal } = scan;
+      loadEmbeddedSubs(file, signal).catch((err) => {
+        console.error(err);
+        if (!signal.aborted) toast(`Subtitle scan failed: ${err.message}`, { type: "error" });
+      });
+    }
   }
 
   return detectVideoCodec(file)
