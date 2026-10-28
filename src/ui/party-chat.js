@@ -87,7 +87,8 @@ export function initPartyChat({ stage, button, panel, send }) {
     const el = document.createElement("span");
     el.className = "chat-float";
     el.textContent = emoji;
-    el.style.left = `${10 + Math.random() * 80}%`;
+    // Left half, so the chat panel on the right doesn't hide them.
+    el.style.left = `${8 + Math.random() * 40}%`;
     el.addEventListener("animationend", () => el.remove(), { once: true });
     floats.append(el);
   }
