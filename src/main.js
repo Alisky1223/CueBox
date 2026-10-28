@@ -34,7 +34,14 @@ initSubtitleMenu({
   onAddFile: () => subInput.click(),
   onAddLink: askSubtitleLink,
 });
-initPartyMenu({ button: $("partyBtn"), menu: $("partyMenu"), video });
+initPartyMenu({
+  button: $("partyBtn"),
+  menu: $("partyMenu"),
+  video,
+  stage,
+  chatButton: $("chatBtn"),
+  chatPanel: $("chatPanel"),
+});
 const linkForms = initLinkForms({
   button: $("linkBtn"),
   dialog: $("linkDialog"),
