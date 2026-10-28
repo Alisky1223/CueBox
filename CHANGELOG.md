@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-28
+
 ### Added
 
 - **Play from a link**: paste a direct link to a video file on the start screen, or use **Open link** (`U`) in the top bar, and it streams right away. Embedded audio tracks and the HEVC check also work when the server allows CueBox to read the file (CORS with range requests); embedded subtitles aren't scanned for links.
