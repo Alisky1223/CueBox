@@ -16,7 +16,7 @@
 - **Switch or turn off subtitles.** Pick any track from the subtitle menu, or choose **Off**. You can also change the subtitle size and background, and shift timing when subtitles are out of sync.
 - **Switch audio tracks.** Videos with several audio tracks (for example, multiple dubs) get an audio menu. In MKV/WebM files, CueBox reads the chosen track itself, so this works in Chrome and Edge without any flags.
 - **A polished player.** It has a dark cinematic theme, a seek bar that previews the time, speed control, picture-in-picture and fullscreen. Controls hide on their own while the video plays.
-- **Watch together.** Pair with someone on another device using a short code, and play, pause, seeking and speed stay in sync. Each of you plays your own copy of the video.
+- **Watch together.** Pair with someone on another device using a short code, and play, pause, seeking and speed stay in sync. Chat and send emoji reactions while you watch. Each of you plays your own copy of the video.
 - **100% offline.** Nothing is uploaded and there's nothing to install. The build is a single HTML file. Only **Watch together** and **Play from a link** need internet, and nothing of yours is ever sent anywhere.
 
 ## Usage
@@ -68,6 +68,10 @@ Paste a link into the box under **Drop a video here** and press **Play**. While 
 3. The other person opens **Watch together**, types the code and clicks **Join**.
 
 From then on, play, pause, seeking and speed changes on either side apply to both players. CueBox warns you if the two videos have different lengths. Pairing goes through the free public [PeerJS](https://peerjs.com) server; after that, the two browsers talk directly whenever the network allows.
+
+Once connected, the **Chat** button (speech bubble) opens a chat panel over the video, also in fullscreen. Type a message, or tap an emoji to send a reaction that floats up on both screens. Set your name at the top of the panel. Messages that arrive while the panel is closed pop up briefly over the video. Chat isn't saved anywhere.
+
+![Watch together chat with emoji reactions](docs/screenshots/watch-together-chat.png)
 
 ### Keyboard shortcuts
 
