@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-28
+
 ### Added
 
 - **Watch together chat**: once connected, the chat button opens a panel over the video (works in fullscreen) to message your partner and send quick emoji reactions. Messages that arrive while the panel is closed pop up briefly over the video. Set a name in the panel to show it to your partner. Chat goes directly between the two browsers and isn't saved.
