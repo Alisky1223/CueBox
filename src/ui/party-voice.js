@@ -4,6 +4,7 @@ import { load, save } from "./storage.js";
 import { toast } from "./toast.js";
 
 const MODES = { open: "Open mic", ptt: "Push to talk" };
+const MODE_ICONS = { open: "mic", ptt: "hand" };
 const KEY = "v";
 
 const micError = (err) =>
@@ -14,10 +15,10 @@ const micError = (err) =>
       : (err?.message ?? "Couldn't turn on the microphone.");
 
 /**
- * Mic button (click to toggle in open mic, hold in push to talk, or the V key), the partner-talking badge,
- * and the voice settings shown in the Watch together menu.
+ * Mic button (click to toggle in open mic, hold in push to talk, or the V key), the mode switch in the top bar,
+ * the partner-talking badge, and the voice settings shown in the Watch together menu.
  */
-export function initPartyVoice({ voice, button, stage, menu }) {
+export function initPartyVoice({ voice, button, modeSwitch, stage, menu }) {
   voice.mode = MODES[load("voiceMode")] ? load("voiceMode") : "open";
   voice.threshold = load("voiceThreshold", voice.threshold);
   voice.ducking = load("voiceDucking", true);
@@ -40,7 +41,29 @@ export function initPartyVoice({ voice, button, stage, menu }) {
     voice.setHeld(held);
   };
 
+  const setMode = (mode) => {
+    if (!MODES[mode] || mode === voice.mode) return;
+    voice.setMode(mode);
+    save("voiceMode", mode);
+    update();
+    renderSection();
+  };
+
+  modeSwitch.innerHTML = Object.entries(MODES)
+    .map(
+      ([k, v]) =>
+        `<button type="button" data-voice-mode="${k}" title="${v}">${icon(MODE_ICONS[k])}<span class="btn-label">${v}</span></button>`,
+    )
+    .join("");
+  modeSwitch.addEventListener("click", (e) => setMode(e.target.closest("[data-voice-mode]")?.dataset.voiceMode));
+
   function update() {
+    for (const b of modeSwitch.children) {
+      const on = b.dataset.voiceMode === voice.mode;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", on);
+    }
+    modeSwitch.hidden = !connected;
     const ptt = voice.mode === "ptt";
     const on = voice.live && (!ptt || voice.held);
     setIcon(button, on ? "mic" : "mic-off");
@@ -100,12 +123,7 @@ export function initPartyVoice({ voice, button, stage, menu }) {
 
   menu.addEventListener("click", (e) => {
     const mode = e.target.closest("[data-voice-mode]")?.dataset.voiceMode;
-    if (mode) {
-      voice.setMode(mode);
-      save("voiceMode", mode);
-      update();
-      return renderSection();
-    }
+    if (mode) return setMode(mode);
     if (e.target.closest("[data-voice-duck]")) {
       voice.ducking = !voice.ducking;
       save("voiceDucking", voice.ducking);

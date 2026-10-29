@@ -12,7 +12,7 @@ import { toast } from "./toast.js";
 
 const formatCode = (code) => `${code.slice(0, 3)} ${code.slice(3)}`;
 
-export function initPartyMenu({ button, menu, video, stage, chatButton, chatPanel, micButton, onDuck }) {
+export function initPartyMenu({ button, menu, video, stage, chatButton, chatPanel, micButton, voiceMode, onDuck }) {
   const media = {
     get ready() {
       return video.readyState >= HTMLMediaElement.HAVE_METADATA && Number.isFinite(video.duration);
@@ -86,7 +86,7 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     onDuck,
     onError: (err) => toast(err.message, { type: "error", duration: 6000 }),
   });
-  const voiceUi = initPartyVoice({ voice, button: micButton, stage, menu });
+  const voiceUi = initPartyVoice({ voice, button: micButton, modeSwitch: voiceMode, stage, menu });
 
   const chat = initPartyChat({ stage, button: chatButton, panel: chatPanel, send: (msg) => link.send(msg) });
 

@@ -73,7 +73,7 @@ Once connected, the **Chat** button (speech bubble) opens a chat panel over the 
 
 ![Watch together chat with emoji reactions](docs/screenshots/watch-together-chat.png)
 
-The **Mic** button turns on voice chat (your browser asks for the microphone the first time). Pick the mode under **Voice** in the **Watch together** menu:
+The **Mic** button turns on voice chat (your browser asks for the microphone the first time). Pick the mode with the **Open mic** / **Push to talk** switch at the top right (also under **Voice** in the **Watch together** menu):
 
 - **Open mic**: click the mic button (or press `V`) to turn the mic on or off. Only sound louder than the **Threshold** is sent, so background noise stays out. Speak and move the marker just above the noise on the level bar.
 - **Push to talk**: hold the mic button or `V` while you talk. Handy in public places.
