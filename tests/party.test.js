@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MAX_NAME, MAX_TEXT, REACTIONS, chatMessage, reactionMessage, readChat } from "../src/party/chat.js";
 import { makeCode, parseCode } from "../src/party/code.js";
 import { HEARTBEAT_MS, SyncSession } from "../src/party/sync.js";
 
@@ -198,5 +199,37 @@ describe("SyncSession", () => {
     p.guest.start();
     p.flush();
     expect(p.onMismatch).not.toHaveBeenCalled();
+  });
+});
+
+describe("chat messages", () => {
+  it("trims text and names, and drops empty text", () => {
+    expect(chatMessage("  hi  ", "  Sam  Lee ")).toEqual({ t: "chat", text: "hi", name: "Sam Lee" });
+    expect(chatMessage("   ", "Sam")).toBeNull();
+    expect(chatMessage(42, "Sam")).toBeNull();
+  });
+
+  it("caps text and name lengths", () => {
+    const msg = chatMessage("x".repeat(MAX_TEXT + 50), "n".repeat(MAX_NAME + 5));
+    expect(msg.text).toHaveLength(MAX_TEXT);
+    expect(msg.name).toHaveLength(MAX_NAME);
+  });
+
+  it("only allows the listed reactions", () => {
+    expect(reactionMessage(REACTIONS[0], "")).toEqual({ t: "react", emoji: REACTIONS[0], name: "" });
+    expect(reactionMessage("<b>", "")).toBeNull();
+  });
+
+  it("reads a partner's chat and reactions, rejecting junk", () => {
+    expect(readChat({ t: "chat", text: " yo ", name: 5 })).toEqual({ kind: "text", text: "yo", name: "" });
+    expect(readChat({ t: "react", emoji: REACTIONS[1], name: "Al" })).toEqual({
+      kind: "react",
+      emoji: REACTIONS[1],
+      name: "Al",
+    });
+    expect(readChat({ t: "react", emoji: "💩" })).toBeNull();
+    expect(readChat({ t: "chat", text: "" })).toBeNull();
+    expect(readChat({ t: "state", playing: true })).toBeNull();
+    expect(readChat(null)).toBeNull();
   });
 });

@@ -1,14 +1,16 @@
+import { readChat } from "../party/chat.js";
 import { parseCode } from "../party/code.js";
 import { PartyLink, describeError } from "../party/link.js";
 import { SyncSession } from "../party/sync.js";
 import { escapeHtml, formatTime } from "./format.js";
 import { icon } from "./icons.js";
 import { toggleMenu } from "./menu.js";
+import { initPartyChat } from "./party-chat.js";
 import { toast } from "./toast.js";
 
 const formatCode = (code) => `${code.slice(0, 3)} ${code.slice(3)}`;
 
-export function initPartyMenu({ button, menu, video }) {
+export function initPartyMenu({ button, menu, video, stage, chatButton, chatPanel }) {
   const media = {
     get ready() {
       return video.readyState >= HTMLMediaElement.HAVE_METADATA && Number.isFinite(video.duration);
@@ -52,24 +54,33 @@ export function initPartyMenu({ button, menu, video }) {
           ),
       });
       session.start();
+      chat.setConnected(true);
       set({ status: "connected", error: "" });
       toast("Partner connected. Playback is synced.", { type: "success" });
     },
-    onMessage: (msg) => session?.receive(msg),
+    onMessage(msg) {
+      const incoming = readChat(msg);
+      if (incoming) chat.receive(incoming);
+      else session?.receive(msg);
+    },
     onClose() {
       endSession();
       toast("Your partner left.");
-      // The host keeps its code so the partner can rejoin.
+      // The host keeps its code (and the chat so far) so the partner can rejoin.
       if (state.role === "host") return set({ status: "waiting" });
+      chat.reset();
       link.leave();
       set({ status: "idle", role: null, error: "Your partner left." });
     },
     onError: (err) => toast(describeError(err), { type: "error", duration: 6000 }),
   });
 
+  const chat = initPartyChat({ stage, button: chatButton, panel: chatPanel, send: (msg) => link.send(msg) });
+
   const endSession = () => {
     session?.stop();
     session = null;
+    chat.setConnected(false);
   };
 
   for (const ev of ["play", "pause", "seeked", "ratechange"]) video.addEventListener(ev, () => session?.localChange());
@@ -105,6 +116,7 @@ export function initPartyMenu({ button, menu, video }) {
 
   function leave() {
     endSession();
+    chat.reset();
     link.leave();
     set({ status: "idle", role: null, error: "" });
   }
@@ -121,9 +133,9 @@ export function initPartyMenu({ button, menu, video }) {
     else if (status === "waiting")
       body = `${code}${action("copy", "copy", "Copy code")}${note("Send this code to your partner. Waiting for them to join…")}<div class="menu-sep"></div>${action("leave", "x", "Stop")}`;
     else if (status === "connected")
-      body = `${note(`<span class="party-dot"></span>Connected. Play, pause and seeking are shared.`)}${state.role === "host" ? code : ""}<div class="menu-sep"></div>${action("leave", "x", "Leave")}`;
+      body = `${note(`<span class="party-dot"></span>Connected. Play, pause and seeking are shared. Chat with the chat button.`)}${state.role === "host" ? code : ""}<div class="menu-sep"></div>${action("leave", "x", "Leave")}`;
     else
-      body = `${note("Watch in sync with someone on another device. You each open your own copy of the same video; only play, pause and seeking are shared.")}
+      body = `${note("Watch in sync with someone on another device. You each open your own copy of the same video; only play, pause, seeking and chat are shared.")}
         ${action("host", "users", "Create a code")}
         <div class="menu-sep"></div>
         <form class="party-join">
