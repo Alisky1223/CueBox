@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Watch together voice chat**: the mic button lets you talk to your partner. **Open mic** sends only sound over an adjustable threshold, so background noise stays out; **Push to talk** sends while you hold the mic button or `V`. The movie gets quieter while your partner talks, and their volume is adjustable, both in the Watch together menu. Voice goes directly between the two browsers.
+
 ## [0.6.0] - 2026-10-28
 
 ### Added

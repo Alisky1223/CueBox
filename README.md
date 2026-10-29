@@ -16,7 +16,7 @@
 - **Switch or turn off subtitles.** Pick any track from the subtitle menu, or choose **Off**. You can also change the subtitle size and background, and shift timing when subtitles are out of sync.
 - **Switch audio tracks.** Videos with several audio tracks (for example, multiple dubs) get an audio menu. In MKV/WebM files, CueBox reads the chosen track itself, so this works in Chrome and Edge without any flags.
 - **A polished player.** It has a dark cinematic theme, a seek bar that previews the time, speed control, picture-in-picture and fullscreen. Controls hide on their own while the video plays.
-- **Watch together.** Pair with someone on another device using a short code, and play, pause, seeking and speed stay in sync. Chat and send emoji reactions while you watch. Each of you plays your own copy of the video.
+- **Watch together.** Pair with someone on another device using a short code, and play, pause, seeking and speed stay in sync. Chat, send emoji reactions and talk while you watch. Each of you plays your own copy of the video.
 - **100% offline.** Nothing is uploaded and there's nothing to install. The build is a single HTML file. Only **Watch together** and **Play from a link** need internet, and nothing of yours is ever sent anywhere.
 
 ## Usage
@@ -73,21 +73,29 @@ Once connected, the **Chat** button (speech bubble) opens a chat panel over the 
 
 ![Watch together chat with emoji reactions](docs/screenshots/watch-together-chat.png)
 
+The **Mic** button turns on voice chat (your browser asks for the microphone the first time). Pick the mode under **Voice** in the **Watch together** menu:
+
+- **Open mic**: click the mic button (or press `V`) to turn the mic on or off. Only sound louder than the **Threshold** is sent, so background noise stays out. Speak and move the marker just above the noise on the level bar.
+- **Push to talk**: hold the mic button or `V` while you talk. Handy in public places.
+
+While your partner talks, the movie gets quieter (turn off **Lower movie while partner talks** to keep it as is). You can also set your partner's volume there. Use headphones if you can, since speakers can leak the movie into your mic. Voice goes directly between the two browsers.
+
 ### Keyboard shortcuts
 
-| Key           | Action                  |
-| ------------- | ----------------------- |
-| `Space` / `K` | Play / pause            |
-| `←` / `→`     | Seek 5s                 |
-| `J` / `L`     | Seek 10s                |
-| `↑` / `↓`     | Volume                  |
-| `M`           | Mute                    |
-| `F`           | Fullscreen              |
-| `C`           | Cycle subtitle tracks   |
-| `A`           | Cycle audio tracks      |
-| `G` / `H`     | Subtitle delay −/+ 0.1s |
-| `O`           | Open video              |
-| `U`           | Play from a link        |
+| Key           | Action                                       |
+| ------------- | -------------------------------------------- |
+| `Space` / `K` | Play / pause                                 |
+| `←` / `→`     | Seek 5s                                      |
+| `J` / `L`     | Seek 10s                                     |
+| `↑` / `↓`     | Volume                                       |
+| `M`           | Mute                                         |
+| `F`           | Fullscreen                                   |
+| `C`           | Cycle subtitle tracks                        |
+| `A`           | Cycle audio tracks                           |
+| `G` / `H`     | Subtitle delay −/+ 0.1s                      |
+| `O`           | Open video                                   |
+| `U`           | Play from a link                             |
+| `V`           | Mic on/off, or hold to talk (Watch together) |
 
 ## Development
 
