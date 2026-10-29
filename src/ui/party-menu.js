@@ -58,7 +58,7 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
       session.start();
       chat.setConnected(true);
       voiceUi.setConnected(true);
-      if (state.role === "guest") voice.start(link);
+      voice.open(link, { leader: state.role === "host" });
       set({ status: "connected", error: "" });
       toast("Partner connected. Playback is synced.", { type: "success" });
     },

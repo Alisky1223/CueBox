@@ -16,9 +16,10 @@ const SILENT = -100;
 const voiceError = (message) => Object.assign(new Error(message), { type: "voice" });
 
 /**
- * Voice chat over a PeerJS media call. The outgoing track comes from Web Audio and stays silent until the mic is on
- * and the gate lets sound through, so the call is set up once on connect and the mic is plugged in later without
- * renegotiating. Open mic sends sound over a threshold; push to talk sends while held.
+ * Voice chat over a PeerJS media call, started only once either side turns on the mic so pairing without voice stays
+ * as light as before. The outgoing track comes from Web Audio and stays silent until the mic is on and the gate lets
+ * sound through, so the mic is plugged in or out without renegotiating. Open mic sends sound over a threshold;
+ * push to talk sends while held.
  */
 export class VoiceChat {
   /**
@@ -37,6 +38,8 @@ export class VoiceChat {
     this.gate = new LevelGate(DEFAULT_THRESHOLD);
     this.partnerGate = new LevelGate(PARTNER_DB);
     this.ctx = null;
+    this.link = null;
+    this.leader = false;
     this.clear();
   }
 
@@ -108,13 +111,15 @@ export class VoiceChat {
     if (this.player?.srcObject && this.player.paused) this.player.play().catch(() => {});
   }
 
-  /** Calls the partner. Only one side does this; the other answers. */
-  start(link) {
-    this.setup();
-    this.attach(link.call(this.out.stream));
+  /** A partner connected; nothing is set up until one of you turns on the mic. */
+  open(link, { leader }) {
+    this.link = link;
+    this.leader = leader;
   }
 
   answer(call) {
+    // Both turned on the mic at once and called each other: the host's call wins.
+    if (this.leader && this.call && !this.remote) return call.close();
     this.setup();
     call.answer(this.out.stream);
     this.attach(call);
@@ -159,6 +164,7 @@ export class VoiceChat {
   enable() {
     this.setup();
     this.resume();
+    if (!this.call && this.link) this.attach(this.link.call(this.out.stream));
     if (this.mic) return Promise.resolve();
     if (!navigator.mediaDevices?.getUserMedia)
       return Promise.reject(voiceError("This browser doesn't allow microphone access here."));
@@ -233,6 +239,7 @@ export class VoiceChat {
 
   /** Ends the call and releases the mic; settings are kept for the next session. */
   close() {
+    this.link = null;
     if (!this.ctx) return;
     clearInterval(this.timer);
     const { call, mic, duck } = this;
