@@ -1,7 +1,7 @@
 {
   "name": "cuebox",
-  "version": "0.6.0",
-  "description": "Drop a file, get your subtitles. Zero-install offline video player with automatic MKV soft-sub support.",
+  "version": "0.6.2",
+  "description": "now you can use voice chat when you watching movie with your partner",
   "license": "MIT",
   "private": true,
   "type": "module",
