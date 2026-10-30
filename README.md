@@ -96,6 +96,7 @@ Once connected, the **Chat** button (speech bubble) opens a chat panel over the 
 | Drag up/down on the right | Volume           |
 | Drag up/down on the left  | Video brightness |
 | Drag left/right           | Seek             |
+| Tap                       | Show controls    |
 
 ## Development
 

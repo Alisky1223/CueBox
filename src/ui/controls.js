@@ -29,6 +29,7 @@ export function initControls({ stage, video }) {
   playBtn.onclick = togglePlay;
   video.addEventListener("click", () => {
     if (isMenuOpen()) return closeMenus();
+    if (matchMedia("(pointer: coarse)").matches) return wake();
     togglePlay();
     flash(video.paused ? "pause" : "play");
   });
@@ -196,8 +197,9 @@ export function initControls({ stage, video }) {
   }
   stage.addEventListener("pointermove", wake);
   stage.addEventListener("pointerdown", wake);
-  stage.addEventListener("pointerleave", () => {
-    if (!video.paused && !isMenuOpen()) stage.classList.add("idle");
+  // Touch fires pointerleave on every finger lift, which isn't the pointer going away.
+  stage.addEventListener("pointerleave", (e) => {
+    if (e.pointerType === "mouse" && !video.paused && !isMenuOpen()) stage.classList.add("idle");
   });
   // Mouse clicks shouldn't leave focus on buttons, or Space would re-trigger them.
   stage.addEventListener("pointerup", (e) => e.pointerType === "mouse" && e.target.closest("button")?.blur());
