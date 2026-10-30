@@ -97,6 +97,15 @@ While your partner talks, the movie gets quieter (turn off **Lower movie while p
 | `U`           | Play from a link                             |
 | `V`           | Mic on/off, or hold to talk (Watch together) |
 
+### Phone gestures
+
+| Gesture (on the video)    | Action           |
+| ------------------------- | ---------------- |
+| Drag up/down on the right | Volume           |
+| Drag up/down on the left  | Video brightness |
+| Drag left/right           | Seek             |
+| Tap                       | Show controls    |
+
 ## Development
 
 You need Node 20 or newer, with Corepack enabled (`corepack enable`).
@@ -117,6 +126,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow and project layout.
 - Audio tracks can only be switched in MKV/WebM files, unless your browser supports `audioTracks` (Safari does). The chosen track must use a codec your browser can play: AAC, Opus, Vorbis, MP3 and FLAC work, but Chrome can't play AC3/E-AC3/DTS. Switching to a track loads it into memory, which takes a few seconds for large files.
 - On phones, you open videos from inside CueBox. It doesn't show up in the file manager's **Open with** menu.
 - iPhone and iPad can't play MKV files at all, so only MP4 and WebM work there. Android plays MKV.
+- The brightness gesture changes the video's picture, not the phone's screen brightness. Browsers can't set that.
+- The volume gesture doesn't work on iPhone and iPad, where only the hardware buttons change volume.
 - Subtitle and audio track extraction reads the whole file, which can be slow for large MKVs on phones with little memory.
 - Whether a video plays depends on your browser's codecs. HEVC/x265 needs a GPU that can decode HEVC, with hardware acceleration turned on. Edge also needs [HEVC Video Extensions](https://apps.microsoft.com/detail/9nmzlz57r3t7) from the Microsoft Store. CueBox detects HEVC files it can't play and tells you how to fix it.
 - **Watch together** needs an internet connection and relies on the free PeerJS cloud server, which has no uptime guarantee. Some strict corporate or mobile networks can block the connection.
