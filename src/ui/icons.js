@@ -1,4 +1,5 @@
 const SPEAKER = '<path d="M11 5 6 9H2v6h4l5 4z"/>';
+const MIC_STAND = '<path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3"/>';
 
 const ICONS = {
   logo: '<rect x="1" y="2" width="22" height="20" rx="6" fill="currentColor" stroke="none"/><path d="M10 7v7l5.5-3.5z" fill="#111" stroke="none"/><path d="M7 18h10" stroke="#111"/>',
@@ -39,6 +40,9 @@ const ICONS = {
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
   chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
+  hand: '<path d="M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-2.4l-3.6-3.6a2 2 0 0 1 2.8-2.8L7 15"/>',
+  mic: `<rect x="9" y="2" width="6" height="12" rx="3"/>${MIC_STAND}`,
+  "mic-off": `<path d="M15 9.3V5a3 3 0 0 0-5.7-1.3M9 9v3a3 3 0 0 0 5.1 2.1"/>${MIC_STAND}<path d="m2 2 20 20"/>`,
 };
 
 export function icon(name) {

@@ -2,15 +2,17 @@ import { readChat } from "../party/chat.js";
 import { parseCode } from "../party/code.js";
 import { PartyLink, describeError } from "../party/link.js";
 import { SyncSession } from "../party/sync.js";
+import { VoiceChat } from "../party/voice.js";
 import { escapeHtml, formatTime } from "./format.js";
 import { icon } from "./icons.js";
 import { toggleMenu } from "./menu.js";
 import { initPartyChat } from "./party-chat.js";
+import { initPartyVoice } from "./party-voice.js";
 import { toast } from "./toast.js";
 
 const formatCode = (code) => `${code.slice(0, 3)} ${code.slice(3)}`;
 
-export function initPartyMenu({ button, menu, video, stage, chatButton, chatPanel }) {
+export function initPartyMenu({ button, menu, video, stage, chatButton, chatPanel, micButton, voiceMode, onDuck }) {
   const media = {
     get ready() {
       return video.readyState >= HTMLMediaElement.HAVE_METADATA && Number.isFinite(video.duration);
@@ -55,6 +57,8 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
       });
       session.start();
       chat.setConnected(true);
+      voiceUi.setConnected(true);
+      voice.open(link, { leader: state.role === "host" });
       set({ status: "connected", error: "" });
       toast("Partner connected. Playback is synced.", { type: "success" });
     },
@@ -72,8 +76,17 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
       link.leave();
       set({ status: "idle", role: null, error: "Your partner left." });
     },
+    onCall: (call) => voice.answer(call),
     onError: (err) => toast(describeError(err), { type: "error", duration: 6000 }),
   });
+
+  const voice = new VoiceChat({
+    onChange: () => voiceUi.update(),
+    onLevel: (db) => voiceUi.meter(db),
+    onDuck,
+    onError: (err) => toast(err.message, { type: "error", duration: 6000 }),
+  });
+  const voiceUi = initPartyVoice({ voice, button: micButton, modeSwitch: voiceMode, stage, menu });
 
   const chat = initPartyChat({ stage, button: chatButton, panel: chatPanel, send: (msg) => link.send(msg) });
 
@@ -81,6 +94,8 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     session?.stop();
     session = null;
     chat.setConnected(false);
+    voice.close();
+    voiceUi.setConnected(false);
   };
 
   for (const ev of ["play", "pause", "seeked", "ratechange"]) video.addEventListener(ev, () => session?.localChange());
@@ -133,9 +148,9 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     else if (status === "waiting")
       body = `${code}${action("copy", "copy", "Copy code")}${note("Send this code to your partner. Waiting for them to join…")}<div class="menu-sep"></div>${action("leave", "x", "Stop")}`;
     else if (status === "connected")
-      body = `${note(`<span class="party-dot"></span>Connected. Play, pause and seeking are shared. Chat with the chat button.`)}${state.role === "host" ? code : ""}<div class="menu-sep"></div>${action("leave", "x", "Leave")}`;
+      body = `${note(`<span class="party-dot"></span>Connected. Play, pause and seeking are shared. Chat with the chat button, talk with the mic button.`)}${state.role === "host" ? code : ""}${voiceUi.section()}<div class="menu-sep"></div>${action("leave", "x", "Leave")}`;
     else
-      body = `${note("Watch in sync with someone on another device. You each open your own copy of the same video; only play, pause, seeking and chat are shared.")}
+      body = `${note("Watch in sync with someone on another device. You each open your own copy of the same video; only play, pause, seeking, chat and voice are shared.")}
         ${action("host", "users", "Create a code")}
         <div class="menu-sep"></div>
         <form class="party-join">

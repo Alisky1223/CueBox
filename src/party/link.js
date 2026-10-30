@@ -26,7 +26,7 @@ export function describeError(err) {
 
 /**
  * One-to-one link through the public PeerJS server: the host waits under a short code, the guest connects to it.
- * Only small JSON messages travel over it.
+ * Small JSON messages travel over a data connection; voice goes over a separate media call.
  */
 export class PartyLink {
   /**
@@ -35,6 +35,7 @@ export class PartyLink {
    * @param {(msg: object) => void} handlers.onMessage
    * @param {() => void} handlers.onClose partner left or connection dropped
    * @param {(err: Error) => void} handlers.onError error after setup
+   * @param {(call: import("peerjs").MediaConnection) => void} handlers.onCall partner started a voice call, not yet answered
    */
   constructor(handlers) {
     this.handlers = handlers;
@@ -114,6 +115,11 @@ export class PartyLink {
     if (this.connected) this.conn.send(msg);
   }
 
+  /** Starts a voice call to the partner, sending `stream`. */
+  call(stream) {
+    return this.connected ? this.peer.call(this.conn.peer, stream) : null;
+  }
+
   leave() {
     const { peer, conn } = this;
     this.peer = this.conn = this.code = null;
@@ -134,6 +140,10 @@ export class PartyLink {
         this.peer = peer;
         peer.on("error", (err) => {
           if (this.peer === peer) this.handlers.onError(err);
+        });
+        peer.on("call", (call) => {
+          if (this.peer === peer && this.connected && call.peer === this.conn.peer) this.handlers.onCall(call);
+          else call.close();
         });
         // Losing the pairing server keeps the open data connection; reconnecting lets a dropped partner rejoin.
         peer.on("disconnected", () => {
