@@ -41,6 +41,9 @@ initPartyMenu({
   stage,
   chatButton: $("chatBtn"),
   chatPanel: $("chatPanel"),
+  micButton: $("micBtn"),
+  voiceMode: $("voiceMode"),
+  onDuck: controls.setDuck,
 });
 const linkForms = initLinkForms({
   button: $("linkBtn"),

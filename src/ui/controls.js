@@ -95,32 +95,47 @@ export function initControls({ stage, video }) {
     video.addEventListener(ev, syncTime);
 
   // ----- volume -----
+  // The user's volume; the video plays it scaled by `duck`, which Watch together lowers while the partner talks.
+  let level = load("volume", 1);
+  let duck = 1;
+  const applyVolume = () => (video.volume = level * duck);
+  const setVolume = (v) => {
+    level = v;
+    save("volume", v);
+    applyVolume();
+  };
+  const setMuted = (muted) => {
+    video.muted = muted;
+    save("muted", muted);
+  };
   const syncVolume = () => {
-    const v = video.muted ? 0 : video.volume;
+    const v = video.muted ? 0 : level;
     volume.value = v;
     volume.style.setProperty("--fill", v);
     setIcon(muteBtn, v === 0 ? "volume-x" : v < 0.5 ? "volume-low" : "volume");
-    save("volume", video.volume);
-    save("muted", video.muted);
   };
-  video.volume = load("volume", 1);
+  applyVolume();
   video.muted = load("muted", false);
   video.addEventListener("volumechange", syncVolume);
   syncVolume();
   volume.oninput = () => {
-    video.volume = Number(volume.value);
-    video.muted = video.volume === 0;
+    setVolume(Number(volume.value));
+    setMuted(level === 0);
   };
   const toggleMute = () => {
-    if (video.muted && video.volume === 0) video.volume = 0.5;
-    video.muted = !video.muted;
-    flash(video.muted ? "volume-x" : "volume", video.muted ? "Muted" : `${Math.round(video.volume * 100)}%`);
+    if (video.muted && level === 0) setVolume(0.5);
+    setMuted(!video.muted);
+    flash(video.muted ? "volume-x" : "volume", video.muted ? "Muted" : `${Math.round(level * 100)}%`);
   };
   muteBtn.onclick = toggleMute;
   const changeVolume = (delta) => {
-    video.muted = false;
-    video.volume = Math.min(Math.max(Math.round((video.volume + delta) * 100) / 100, 0), 1);
-    flash(video.volume === 0 ? "volume-x" : "volume", `${Math.round(video.volume * 100)}%`);
+    setMuted(false);
+    setVolume(Math.min(Math.max(Math.round((level + delta) * 100) / 100, 0), 1));
+    flash(level === 0 ? "volume-x" : "volume", `${Math.round(level * 100)}%`);
+  };
+  const setDuck = (factor) => {
+    duck = factor;
+    applyVolume();
   };
 
   // ----- speed -----
@@ -200,5 +215,5 @@ export function initControls({ stage, video }) {
   syncPlay();
   syncTime();
 
-  return { togglePlay, seekBy, toggleMute, changeVolume, toggleFullscreen, flash, wake };
+  return { togglePlay, seekBy, toggleMute, changeVolume, setDuck, toggleFullscreen, flash, wake };
 }
