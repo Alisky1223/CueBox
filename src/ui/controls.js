@@ -138,10 +138,10 @@ export function initControls({ stage, video }) {
     duck = factor;
     applyVolume();
   };
-  const volumeLevel = () => (video.muted ? 0 : video.volume);
+  const volumeLevel = () => (video.muted ? 0 : level);
   const setVolumeLevel = (v) => {
-    video.volume = v;
-    video.muted = v === 0;
+    setVolume(v);
+    setMuted(v === 0);
   };
 
   // ----- speed -----
@@ -222,5 +222,16 @@ export function initControls({ stage, video }) {
   syncPlay();
   syncTime();
 
-  return { togglePlay, seekBy, toggleMute, changeVolume, volumeLevel, setVolumeLevel, toggleFullscreen, flash, wake };
+  return {
+    togglePlay,
+    seekBy,
+    toggleMute,
+    changeVolume,
+    setDuck,
+    volumeLevel,
+    setVolumeLevel,
+    toggleFullscreen,
+    flash,
+    wake,
+  };
 }
