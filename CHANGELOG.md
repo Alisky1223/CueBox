@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-30
+
 ### Added
 
 - **Phone gestures**: over the video, drag up or down on the right side for volume (not on iPhone/iPad, where only the hardware buttons change it) or on the left side for video brightness, and drag sideways to seek. Brightness changes the picture only, not the phone's screen setting, and is remembered.
