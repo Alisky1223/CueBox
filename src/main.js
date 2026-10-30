@@ -8,6 +8,7 @@ import { SUBTITLE_FILE, decodeText, parseSubtitleFile } from "./subtitles/parser
 import { initAudioMenu } from "./ui/audio-menu.js";
 import { initControls } from "./ui/controls.js";
 import { formatDelay } from "./ui/format.js";
+import { initGestures } from "./ui/gestures.js";
 import { renderIcons } from "./ui/icons.js";
 import { initLinkForms } from "./ui/link-form.js";
 import { closeMenus } from "./ui/menu.js";
@@ -25,6 +26,7 @@ const subInput = $("subInput");
 renderIcons();
 const subs = new SubtitleManager(video);
 const controls = initControls({ stage, video });
+initGestures({ stage, video, controls });
 const audio = new AudioTracks(video);
 initAudioMenu({ button: $("audioBtn"), menu: $("audioMenu"), audio, onSelect: switchAudio, onAddLink: askAudioLink });
 initSubtitleMenu({

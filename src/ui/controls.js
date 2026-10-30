@@ -122,6 +122,11 @@ export function initControls({ stage, video }) {
     video.volume = Math.min(Math.max(Math.round((video.volume + delta) * 100) / 100, 0), 1);
     flash(video.volume === 0 ? "volume-x" : "volume", `${Math.round(video.volume * 100)}%`);
   };
+  const volumeLevel = () => (video.muted ? 0 : video.volume);
+  const setVolumeLevel = (v) => {
+    video.volume = v;
+    video.muted = v === 0;
+  };
 
   // ----- speed -----
   const renderSpeedMenu = () => {
@@ -200,5 +205,5 @@ export function initControls({ stage, video }) {
   syncPlay();
   syncTime();
 
-  return { togglePlay, seekBy, toggleMute, changeVolume, toggleFullscreen, flash, wake };
+  return { togglePlay, seekBy, toggleMute, changeVolume, volumeLevel, setVolumeLevel, toggleFullscreen, flash, wake };
 }
