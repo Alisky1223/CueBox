@@ -29,6 +29,7 @@ export function initControls({ stage, video }) {
   playBtn.onclick = togglePlay;
   video.addEventListener("click", () => {
     if (isMenuOpen()) return closeMenus();
+    if (matchMedia("(pointer: coarse)").matches) return wake();
     togglePlay();
     flash(video.paused ? "pause" : "play");
   });
@@ -137,6 +138,11 @@ export function initControls({ stage, video }) {
     duck = factor;
     applyVolume();
   };
+  const volumeLevel = () => (video.muted ? 0 : level);
+  const setVolumeLevel = (v) => {
+    setVolume(v);
+    setMuted(v === 0);
+  };
 
   // ----- speed -----
   const renderSpeedMenu = () => {
@@ -206,8 +212,9 @@ export function initControls({ stage, video }) {
   }
   stage.addEventListener("pointermove", wake);
   stage.addEventListener("pointerdown", wake);
-  stage.addEventListener("pointerleave", () => {
-    if (!video.paused && !isMenuOpen()) stage.classList.add("idle");
+  // Touch fires pointerleave on every finger lift, which isn't the pointer going away.
+  stage.addEventListener("pointerleave", (e) => {
+    if (e.pointerType === "mouse" && !video.paused && !isMenuOpen()) stage.classList.add("idle");
   });
   // Mouse clicks shouldn't leave focus on buttons, or Space would re-trigger them.
   stage.addEventListener("pointerup", (e) => e.pointerType === "mouse" && e.target.closest("button")?.blur());
@@ -215,5 +222,16 @@ export function initControls({ stage, video }) {
   syncPlay();
   syncTime();
 
-  return { togglePlay, seekBy, toggleMute, changeVolume, setDuck, toggleFullscreen, flash, wake };
+  return {
+    togglePlay,
+    seekBy,
+    toggleMute,
+    changeVolume,
+    setDuck,
+    volumeLevel,
+    setVolumeLevel,
+    toggleFullscreen,
+    flash,
+    wake,
+  };
 }

@@ -6,9 +6,16 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-30
+
 ### Added
 
+- **Phone gestures**: over the video, drag up or down on the right side for volume (not on iPhone/iPad, where only the hardware buttons change it) or on the left side for video brightness, and drag sideways to seek. Brightness changes the picture only, not the phone's screen setting, and is remembered.
 - **Watch together voice chat**: the mic button lets you talk to your partner. **Open mic** sends only sound over an adjustable threshold, so background noise stays out; **Push to talk** sends while you hold the mic button or `V`. Switch modes at the top right. The movie gets quieter while your partner talks, and their volume is adjustable, both in the Watch together menu. Voice goes directly between the two browsers.
+
+### Changed
+
+- On phones, tapping the video shows the controls instead of pausing. Use the play button to pause.
 
 ## [0.6.0] - 2026-10-28
 

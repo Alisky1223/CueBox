@@ -1191,6 +1191,37 @@ video::-webkit-media-text-track-container {
   animation: flash 0.7s ease-out forwards;
 }
 
+.gesture-hud {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 0.15s ease;
+}
+
+.gesture-hud.show {
+  opacity: 1;
+}
+
+.gesture-hud svg {
+  width: 20px;
+  height: 20px;
+}
+
 .spinner {
   position: absolute;
   top: 50%;
@@ -1402,6 +1433,17 @@ video::-webkit-media-text-track-container {
 @media (prefers-reduced-motion: reduce) {
   .chat-float {
     animation: float-fade 2s ease-out forwards !important;
+  }
+}
+
+/* ---------- touch ---------- */
+
+@media (pointer: coarse) {
+  video,
+  .controls {
+    touch-action: pinch-zoom;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
 }
 
