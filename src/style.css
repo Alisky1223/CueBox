@@ -216,7 +216,8 @@ video::-webkit-media-text-track-container {
 .is-empty .menu,
 .is-empty .chat,
 .is-empty .chat-bubbles,
-.is-empty .chat-floats {
+.is-empty .chat-floats,
+.is-empty .voice-badge {
   display: none;
 }
 
@@ -1051,6 +1052,102 @@ video::-webkit-media-text-track-container {
   bottom: 90px;
   font-size: 34px;
   animation: float-up 2.4s ease-out forwards;
+}
+
+/* ---------- voice ---------- */
+
+.voice-mode {
+  align-self: center;
+  height: 38px;
+}
+
+.voice-mode button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+}
+
+.voice-mode svg {
+  width: 16px;
+  height: 16px;
+}
+
+.icon-btn.speaking {
+  box-shadow: inset 0 0 0 2px var(--success);
+}
+
+.voice-badge {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 6px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(8px);
+  font-size: 13px;
+  pointer-events: none;
+  animation: toast-in 0.2s ease-out;
+}
+
+.voice-badge svg {
+  width: 16px;
+  height: 16px;
+  color: var(--success);
+}
+
+.menu-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 140px;
+  height: 4px;
+  margin: 0;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+}
+
+.menu-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text);
+}
+
+.menu-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--text);
+}
+
+/* The slider sits on a live level bar, so its thumb marks the threshold against your voice. */
+.voice-meter {
+  --level: 0;
+  display: flex;
+  align-items: center;
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(to right, var(--muted) calc(var(--level) * 100%), transparent calc(var(--level) * 100%))
+    center / 100% 4px no-repeat;
+}
+
+.voice-meter.loud {
+  background-image: linear-gradient(
+    to right,
+    var(--success) calc(var(--level) * 100%),
+    transparent calc(var(--level) * 100%)
+  );
+}
+
+.voice-meter .menu-slider {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 /* ---------- overlays ---------- */
