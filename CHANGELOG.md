@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-04
+
+### Added
+
+- **Watch together network settings**: add your own TURN relay server (URL, username, password) to connect when a network blocks direct connections.
+
+### Changed
+
+- **Watch together connects on weaker networks**: relays over TCP for networks that block UDP, more time to connect on slow links, and voice uses less bandwidth. If the connection drops, the guest reconnects automatically and gets their spot back; a dead connection is noticed within about 15 seconds.
+
 ## [0.7.0] - 2026-10-30
 
 ### Added

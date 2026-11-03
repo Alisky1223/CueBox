@@ -1,3 +1,4 @@
+import { limitVoice } from "./net.js";
 import { DEFAULT_THRESHOLD, LevelGate, approach, levelDb } from "./voice-gate.js";
 
 // Timers slow down in background tabs, so the gate reacts late there; watching keeps the tab in front.
@@ -121,7 +122,7 @@ export class VoiceChat {
     // Both turned on the mic at once and called each other: the host's call wins.
     if (this.leader && this.call && !this.remote) return call.close();
     this.setup();
-    call.answer(this.out.stream);
+    call.answer(this.out.stream, { sdpTransform: limitVoice });
     this.attach(call);
   }
 

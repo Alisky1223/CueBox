@@ -1,6 +1,7 @@
 import { readChat } from "../party/chat.js";
 import { parseCode } from "../party/code.js";
 import { PartyLink, describeError } from "../party/link.js";
+import { customIceServer } from "../party/net.js";
 import { SyncSession } from "../party/sync.js";
 import { VoiceChat } from "../party/voice.js";
 import { escapeHtml, formatTime } from "./format.js";
@@ -8,7 +9,14 @@ import { icon } from "./icons.js";
 import { toggleMenu } from "./menu.js";
 import { initPartyChat } from "./party-chat.js";
 import { initPartyVoice } from "./party-voice.js";
+import { load, save } from "./storage.js";
 import { toast } from "./toast.js";
+
+const ICE_KEY = "partyIce";
+const SLOW_MS = 8000;
+const REJOIN_TRIES = 4;
+const REJOIN_GAP_MS = 2000;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const formatCode = (code) => `${code.slice(0, 3)} ${code.slice(3)}`;
 
@@ -39,46 +47,56 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     setRate: (rate) => (video.playbackRate = rate),
   };
 
-  // status: idle | busy | waiting (host, no partner yet) | connected
-  const state = { status: "idle", role: null, error: "", lastCode: "" };
+  // status: idle | busy | waiting (host, no partner yet) | connected | reconnecting (guest lost the host)
+  const state = { status: "idle", role: null, error: "", lastCode: "", slow: false };
   let session = null;
+  let ice = load(ICE_KEY, { urls: "", username: "", credential: "" });
 
-  const link = new PartyLink({
-    onOpen() {
-      session = new SyncSession({
-        media,
-        leader: state.role === "host",
-        send: (msg) => link.send(msg),
-        onMismatch: (local, remote) =>
-          toast(
-            `Your videos have different lengths (${formatTime(local)} here, ${formatTime(remote)} for your partner). Make sure you both opened the same version.`,
-            { type: "error", duration: 8000 },
-          ),
-      });
-      session.start();
-      chat.setConnected(true);
-      voiceUi.setConnected(true);
-      voice.open(link, { leader: state.role === "host" });
-      set({ status: "connected", error: "" });
-      toast("Partner connected. Playback is synced.", { type: "success" });
+  const link = new PartyLink(
+    {
+      onOpen() {
+        const rejoined = Boolean(session) || state.status === "reconnecting";
+        endSession();
+        session = new SyncSession({
+          media,
+          leader: state.role === "host",
+          send: (msg) => link.send(msg),
+          onMismatch: (local, remote) =>
+            toast(
+              `Your videos have different lengths (${formatTime(local)} here, ${formatTime(remote)} for your partner). Make sure you both opened the same version.`,
+              { type: "error", duration: 8000 },
+            ),
+        });
+        session.start();
+        chat.setConnected(true);
+        voiceUi.setConnected(true);
+        voice.open(link, { leader: state.role === "host" });
+        set({ status: "connected", error: "" });
+        toast(rejoined ? "Reconnected." : "Partner connected. Playback is synced.", { type: "success" });
+      },
+      onMessage(msg) {
+        const incoming = readChat(msg);
+        if (incoming) chat.receive(incoming);
+        else session?.receive(msg);
+      },
+      onClose({ left }) {
+        endSession();
+        // The host keeps its code (and the chat so far) so the partner can rejoin.
+        if (state.role === "host") {
+          toast(left ? "Your partner left." : "Lost your partner. Waiting for them to reconnect…");
+          return set({ status: "waiting" });
+        }
+        if (!left) return rejoin();
+        toast("Your partner left.");
+        chat.reset();
+        link.leave();
+        set({ status: "idle", role: null, error: "Your partner left." });
+      },
+      onCall: (call) => voice.answer(call),
+      onError: (err) => toast(describeError(err), { type: "error", duration: 6000 }),
     },
-    onMessage(msg) {
-      const incoming = readChat(msg);
-      if (incoming) chat.receive(incoming);
-      else session?.receive(msg);
-    },
-    onClose() {
-      endSession();
-      toast("Your partner left.");
-      // The host keeps its code (and the chat so far) so the partner can rejoin.
-      if (state.role === "host") return set({ status: "waiting" });
-      chat.reset();
-      link.leave();
-      set({ status: "idle", role: null, error: "Your partner left." });
-    },
-    onCall: (call) => voice.answer(call),
-    onError: (err) => toast(describeError(err), { type: "error", duration: 6000 }),
-  });
+    () => ice,
+  );
 
   const voice = new VoiceChat({
     onChange: () => voiceUi.update(),
@@ -107,8 +125,20 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     render();
   };
 
+  /** Says what's wrong with the relay server settings, if anything. */
+  const iceProblem = () =>
+    customIceServer(ice) === undefined
+      ? "The relay server URL in Network settings must start with turn:, turns: or stun:."
+      : "";
+
+  const busy = (patch) => {
+    set({ status: "busy", error: "", slow: false, ...patch });
+    setTimeout(() => state.status === "busy" && set({ slow: true }), SLOW_MS);
+  };
+
   async function host() {
-    set({ status: "busy", role: "host", error: "" });
+    if (iceProblem()) return set({ error: iceProblem() });
+    busy({ role: "host" });
     try {
       await link.host();
       set({ status: "waiting" });
@@ -121,11 +151,38 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
   async function join(input) {
     const code = parseCode(input);
     if (!code) return set({ error: "Codes are 6 letters and numbers, like abc 234." });
-    set({ status: "busy", role: "guest", error: "", lastCode: code });
+    if (iceProblem()) return set({ error: iceProblem() });
+    busy({ role: "guest", lastCode: code });
     try {
       await link.join(code);
     } catch (err) {
       set({ status: "idle", role: null, error: describeError(err) });
+    }
+  }
+
+  /** The guest lost the host without them leaving: try to take the same spot back for a while. */
+  async function rejoin() {
+    const { code, token } = link;
+    set({ status: "reconnecting" });
+    toast("Connection lost. Reconnecting…");
+    for (let i = 0; i < REJOIN_TRIES; i++) {
+      if (i) await wait(REJOIN_GAP_MS);
+      if (state.status !== "reconnecting") return;
+      try {
+        await link.join(code, token);
+        return;
+      } catch (err) {
+        if (state.status !== "reconnecting") return;
+        if (err.type === "peer-unavailable" || err.type === "full" || i === REJOIN_TRIES - 1) {
+          chat.reset();
+          link.leave();
+          return set({
+            status: "idle",
+            role: null,
+            error: `Lost the connection to your partner. ${describeError(err)}`,
+          });
+        }
+      }
     }
   }
 
@@ -144,7 +201,10 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
       `<button class="menu-item menu-action" data-action="${name}"><span class="menu-check">${icon(iconName)}</span><span class="menu-label">${label}</span></button>`;
 
     let body;
-    if (status === "busy") body = note("Connecting…");
+    if (status === "busy")
+      body = note(state.slow ? "Still connecting… On a slow network this can take up to 30 seconds." : "Connecting…");
+    else if (status === "reconnecting")
+      body = `${note("Connection lost. Reconnecting…")}<div class="menu-sep"></div>${action("leave", "x", "Leave")}`;
     else if (status === "waiting")
       body = `${code}${action("copy", "copy", "Copy code")}${note("Send this code to your partner. Waiting for them to join…")}<div class="menu-sep"></div>${action("leave", "x", "Stop")}`;
     else if (status === "connected")
@@ -157,13 +217,26 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
           <input name="code" placeholder="Partner's code" value="${escapeHtml(state.lastCode)}" maxlength="12" autocomplete="off" spellcheck="false" aria-label="Partner's code" />
           <button class="btn btn-primary" type="submit">Join</button>
         </form>
-        ${error ? `<p class="menu-note menu-error">${escapeHtml(error)}</p>` : ""}`;
+        ${error ? `<p class="menu-note menu-error">${escapeHtml(error)}</p>` : ""}
+        <details class="party-net"${customIceServer(ice) === null ? "" : " open"}>
+          <summary>Network settings</summary>
+          <p class="menu-note">If you can't connect, one of you may be on a network that blocks direct connections. A TURN relay server of your own gets through; both of you can set it, one is enough.</p>
+          <input name="urls" placeholder="turns:relay.example.com:443" value="${escapeHtml(ice.urls)}" autocomplete="off" spellcheck="false" aria-label="Relay server URL" />
+          <input name="username" placeholder="Username" value="${escapeHtml(ice.username)}" autocomplete="off" aria-label="Relay username" />
+          <input name="credential" type="password" placeholder="Password" value="${escapeHtml(ice.credential)}" autocomplete="off" aria-label="Relay password" />
+        </details>`;
 
     menu.innerHTML = `<div class="menu-title">Watch together</div>${body}`;
     button.classList.toggle("on", status === "connected");
     button.title = status === "connected" ? "Watch together · connected" : "Watch together";
   }
 
+  menu.addEventListener("input", (e) => {
+    const field = e.target.closest(".party-net input");
+    if (!field) return;
+    ice = { ...ice, [field.name]: field.value.trim() };
+    save(ICE_KEY, ice);
+  });
   menu.addEventListener("submit", (e) => {
     e.preventDefault();
     join(e.target.elements.code.value);
