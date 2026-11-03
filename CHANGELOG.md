@@ -12,6 +12,11 @@ All notable changes to this project are documented here. The format is based on
 
 - **Phone gestures**: over the video, drag up or down on the right side for volume (not on iPhone/iPad, where only the hardware buttons change it) or on the left side for video brightness, and drag sideways to seek. Brightness changes the picture only, not the phone's screen setting, and is remembered.
 - **Watch together voice chat**: the mic button lets you talk to your partner. **Open mic** sends only sound over an adjustable threshold, so background noise stays out; **Push to talk** sends while you hold the mic button or `V`. Switch modes at the top right. The movie gets quieter while your partner talks, and their volume is adjustable, both in the Watch together menu. Voice goes directly between the two browsers.
+- **Watch together network settings**: add your own TURN relay server (URL, username, password) to connect when a network blocks direct connections.
+
+### Changed
+
+- **Watch together connects on weaker networks**: relays over TCP for networks that block UDP, more time to connect on slow links, and voice uses less bandwidth. If the connection drops, the guest reconnects automatically and gets their spot back; a dead connection is noticed within about 15 seconds.
 
 ### Changed
 
