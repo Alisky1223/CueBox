@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { customIceServer, iceServers, limitVoice } from "../src/party/net.js";
+import { FREE_RELAY, activeRelay, customIceServer, iceServers, limitVoice, readRelays } from "../src/party/net.js";
 
 describe("relay server settings", () => {
   it("is empty without urls", () => {
@@ -55,5 +55,29 @@ describe("limitVoice", () => {
   it("leaves sdp without opus alone", () => {
     const plain = "v=0\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n";
     expect(limitVoice(plain)).toBe(plain);
+  });
+});
+
+describe("saved relays", () => {
+  it("starts on the free relay", () => {
+    expect(readRelays(null, null)).toEqual({ active: FREE_RELAY, list: [] });
+  });
+
+  it("turns the old single relay into a saved one", () => {
+    const relays = readRelays(null, { urls: "turn:a.com", username: "u", credential: "p" });
+    expect(activeRelay(relays)).toEqual({
+      id: "r1",
+      name: "My relay",
+      urls: "turn:a.com",
+      username: "u",
+      credential: "p",
+    });
+  });
+
+  it("falls back to free when the active relay is gone", () => {
+    const relays = readRelays({ active: "x", list: [{ id: "r1", name: "A" }] }, { urls: "turn:old.com" });
+    expect(relays.active).toBe(FREE_RELAY);
+    expect(activeRelay(relays)).toBeNull();
+    expect(relays.list).toHaveLength(1);
   });
 });

@@ -856,6 +856,22 @@ video::-webkit-media-text-track-container {
   font-size: 12px;
 }
 
+.party-net option {
+  background: var(--surface-solid);
+  color: var(--text);
+}
+
+.party-relay-delete {
+  width: 100%;
+  justify-content: center;
+  height: 32px;
+  margin-top: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.party-net select,
 .party-net input {
   display: block;
   width: 100%;

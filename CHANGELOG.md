@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **Watch together saved relays**: save several TURN relay servers (e.g. one from metered.ca) under Network settings and pick which to use, or switch back to the free relay. They stay in your browser only; an existing relay setting is kept as "My relay".
 - **Watch together connection log**: under Network settings, copy or download a log of recent connection attempts (pairing server, connection steps, relay use) to find out why connecting fails. Kept across reloads; no addresses or passwords are stored.
 
 ## [0.7.1] - 2026-11-04

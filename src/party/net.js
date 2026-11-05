@@ -55,3 +55,26 @@ export function limitVoice(sdp, kbps = VOICE_KBPS) {
     return `a=fmtp:${pt} ${[...merged].map(([k, v]) => `${k}=${v}`).join(";")}`;
   });
 }
+
+export const FREE_RELAY = "free";
+
+/** Saved relay servers and which one is in use; an old single relay setting becomes the first saved one. */
+export function readRelays(saved, legacy) {
+  if (Array.isArray(saved?.list)) {
+    const list = saved.list.filter((r) => r?.id);
+    return { active: list.some((r) => r.id === saved.active) ? saved.active : FREE_RELAY, list };
+  }
+  if (legacy?.urls) {
+    const relay = {
+      id: "r1",
+      name: "My relay",
+      urls: legacy.urls,
+      username: legacy.username ?? "",
+      credential: legacy.credential ?? "",
+    };
+    return { active: relay.id, list: [relay] };
+  }
+  return { active: FREE_RELAY, list: [] };
+}
+
+export const activeRelay = (relays) => relays.list.find((r) => r.id === relays.active) ?? null;

@@ -2,7 +2,7 @@ import { readChat } from "../party/chat.js";
 import { parseCode } from "../party/code.js";
 import { PartyLink, describeError } from "../party/link.js";
 import { NetLog } from "../party/log.js";
-import { customIceServer } from "../party/net.js";
+import { FREE_RELAY, activeRelay, customIceServer, readRelays } from "../party/net.js";
 import { SyncSession } from "../party/sync.js";
 import { VoiceChat } from "../party/voice.js";
 import { escapeHtml, formatTime } from "./format.js";
@@ -14,6 +14,7 @@ import { load, save } from "./storage.js";
 import { toast } from "./toast.js";
 
 const ICE_KEY = "partyIce";
+const RELAYS_KEY = "partyRelays";
 const LOG_KEY = "partyLog";
 const SLOW_MS = 8000;
 const REJOIN_TRIES = 4;
@@ -52,7 +53,10 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
   // status: idle | busy | waiting (host, no partner yet) | connected | reconnecting (guest lost the host)
   const state = { status: "idle", role: null, error: "", lastCode: "", slow: false };
   let session = null;
-  let ice = load(ICE_KEY, { urls: "", username: "", credential: "" });
+  const relays = readRelays(load(RELAYS_KEY, null), load(ICE_KEY, null));
+  const ice = () => activeRelay(relays);
+  const saveRelays = () => save(RELAYS_KEY, relays);
+  let netOpen = relays.active !== FREE_RELAY;
   const log = new NetLog({ load: () => load(LOG_KEY, []), save: (entries) => save(LOG_KEY, entries) });
 
   /** Starts a log section for one attempt, with what's known about this browser and network. */
@@ -61,7 +65,8 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
       ...data,
       online: navigator.onLine,
       net: navigator.connection?.effectiveType,
-      customRelay: customIceServer(ice)?.urls ?? "no",
+      relay: ice()?.name ?? "free",
+      relayUrls: customIceServer(ice())?.urls,
       ua: navigator.userAgent,
     });
 
@@ -109,7 +114,7 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
       onCall: (call) => voice.answer(call),
       onError: (err) => toast(describeError(err), { type: "error", duration: 6000 }),
     },
-    () => ice,
+    ice,
     log,
   );
 
@@ -142,7 +147,7 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
 
   /** Says what's wrong with the relay server settings, if anything. */
   const iceProblem = () =>
-    customIceServer(ice) === undefined
+    customIceServer(ice()) === undefined
       ? "The relay server URL in Network settings must start with turn:, turns: or stun:."
       : "";
 
@@ -236,12 +241,10 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
           <button class="btn btn-primary" type="submit">Join</button>
         </form>
         ${error ? `<p class="menu-note menu-error">${escapeHtml(error)}</p>` : ""}
-        <details class="party-net"${customIceServer(ice) === null ? "" : " open"}>
+        <details class="party-net"${netOpen ? " open" : ""}>
           <summary>Network settings</summary>
-          <p class="menu-note">If you can't connect, one of you may be on a network that blocks direct connections. A TURN relay server of your own gets through; both of you can set it, one is enough.</p>
-          <input name="urls" placeholder="turns:relay.example.com:443" value="${escapeHtml(ice.urls)}" autocomplete="off" spellcheck="false" aria-label="Relay server URL" />
-          <input name="username" placeholder="Username" value="${escapeHtml(ice.username)}" autocomplete="off" aria-label="Relay username" />
-          <input name="credential" type="password" placeholder="Password" value="${escapeHtml(ice.credential)}" autocomplete="off" aria-label="Relay password" />
+          <p class="menu-note">If you can't connect, one of you may be on a network that blocks direct connections or the free relay. A TURN relay server of your own gets through; one of you setting it is enough. Saved relays stay in this browser only.</p>
+          ${relayFields()}
           <p class="menu-note party-log-note">Connection log: what happened on recent attempts, to find out why connecting fails. No addresses or passwords are kept.</p>
           <div class="party-log">
             <button class="btn" type="button" data-action="log-copy">Copy log</button>
@@ -255,11 +258,58 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     button.title = status === "connected" ? "Watch together · connected" : "Watch together";
   }
 
+  function relayFields() {
+    const relay = ice();
+    const option = (value, label) =>
+      `<option value="${escapeHtml(value)}"${value === relays.active ? " selected" : ""}>${escapeHtml(label)}</option>`;
+    const select = `<select name="relay" aria-label="Relay server">
+      ${option(FREE_RELAY, "Free relay (PeerJS)")}
+      ${relays.list.map((r) => option(r.id, r.name || "Unnamed relay")).join("")}
+      <option value="new">Add a relay…</option>
+    </select>`;
+    if (!relay) return select;
+    return `${select}
+      <input name="name" placeholder="Name" value="${escapeHtml(relay.name)}" autocomplete="off" aria-label="Relay name" />
+      <input name="urls" placeholder="turns:relay.example.com:443 turn:relay.example.com:80" value="${escapeHtml(relay.urls)}" autocomplete="off" spellcheck="false" aria-label="Relay server URLs, separated by spaces" />
+      <input name="username" placeholder="Username" value="${escapeHtml(relay.username)}" autocomplete="off" aria-label="Relay username" />
+      <input name="credential" type="password" placeholder="Password" value="${escapeHtml(relay.credential)}" autocomplete="off" aria-label="Relay password" />
+      <button class="btn party-relay-delete" type="button" data-action="relay-delete">Delete this relay</button>`;
+  }
+
+  menu.addEventListener(
+    "toggle",
+    (e) => {
+      if (e.target.matches?.(".party-net")) netOpen = e.target.open;
+    },
+    true,
+  );
   menu.addEventListener("input", (e) => {
     const field = e.target.closest(".party-net input");
-    if (!field) return;
-    ice = { ...ice, [field.name]: field.value.trim() };
-    save(ICE_KEY, ice);
+    const relay = ice();
+    if (!field || !relay) return;
+    relay[field.name] = field.name === "name" ? field.value : field.value.trim();
+    saveRelays();
+    if (field.name === "name") {
+      const option = menu.querySelector(`.party-net option[value="${CSS.escape(relay.id)}"]`);
+      if (option) option.textContent = relay.name || "Unnamed relay";
+    }
+  });
+  menu.addEventListener("change", (e) => {
+    const select = e.target.closest(".party-net select");
+    if (!select) return;
+    if (select.value === "new") {
+      const relay = {
+        id: `r${Date.now().toString(36)}`,
+        name: `Relay ${relays.list.length + 1}`,
+        urls: "",
+        username: "",
+        credential: "",
+      };
+      relays.list.push(relay);
+      relays.active = relay.id;
+    } else relays.active = select.value;
+    saveRelays();
+    set({ error: "" });
   });
   menu.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -270,7 +320,12 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     if (!t) return;
     if (t.dataset.action === "host") host();
     else if (t.dataset.action === "leave") leave();
-    else if (t.dataset.action === "log-copy")
+    else if (t.dataset.action === "relay-delete") {
+      relays.list = relays.list.filter((r) => r.id !== relays.active);
+      relays.active = FREE_RELAY;
+      saveRelays();
+      render();
+    } else if (t.dataset.action === "log-copy")
       navigator.clipboard
         ?.writeText(log.text())
         .then(() => toast("Log copied", { type: "success" }))
