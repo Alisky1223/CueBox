@@ -1,5 +1,6 @@
 import { Peer } from "peerjs";
 import { makeCode } from "./code.js";
+import { noLog, watchPeerConnection } from "./log.js";
 import { iceServers, limitVoice } from "./net.js";
 
 // Namespaces our codes on the shared public PeerJS server.
@@ -45,10 +46,12 @@ export class PartyLink {
    * @param {(err: Error) => void} handlers.onError error after setup
    * @param {(call: import("peerjs").MediaConnection) => void} handlers.onCall partner started a voice call, not yet answered
    * @param {() => object} [getIce] the user's own relay server, read whenever a peer is created
+   * @param {{ add(event: string, data?: object): void }} [log] connection diagnostics
    */
-  constructor(handlers, getIce = () => null) {
+  constructor(handlers, getIce = () => null, log = noLog) {
     this.handlers = handlers;
     this.getIce = getIce;
+    this.log = log;
     this.peer = null;
     this.conn = null;
     this.code = null;
@@ -68,6 +71,7 @@ export class PartyLink {
         this.code = code;
         break;
       } catch (err) {
+        this.log.add("host.failed", { attempt, type: err.type, message: err.message });
         if (err.type !== "unavailable-id" || attempt >= 2) throw err;
       }
     }
@@ -75,6 +79,8 @@ export class PartyLink {
       // Two people per party: a joining or joined partner holds the spot until they drop, then it's free for a rejoin.
       // The same guest coming back (same token) replaces its old connection, which may not have noticed the drop yet.
       const token = conn.metadata?.token;
+      this.log.add("conn.incoming", { rejoin: Boolean(token && token === this.token), busy: Boolean(this.conn) });
+      watchPeerConnection(conn.peerConnection, this.log, "data");
       if (this.conn && token && token === this.token) {
         const old = this.conn;
         this.conn = null;
@@ -93,6 +99,7 @@ export class PartyLink {
       this.attach(conn, { awaitWelcome: false });
       setTimeout(() => {
         if (this.conn !== conn || conn.open) return;
+        this.log.add("conn.timeout", { ms: JOIN_TIMEOUT_MS });
         this.conn = null;
         conn.close();
       }, JOIN_TIMEOUT_MS);
@@ -111,6 +118,8 @@ export class PartyLink {
     }
     const peer = this.peer;
     const conn = peer.connect(PREFIX + code, { reliable: true, serialization: "json", metadata: { token } });
+    this.log.add("conn.dial");
+    watchPeerConnection(conn.peerConnection, this.log, "data");
     this.code = code;
     this.token = token;
     await new Promise((resolve, reject) => {
@@ -121,6 +130,7 @@ export class PartyLink {
       };
       const fail = (err) => {
         settle();
+        this.log.add("join.failed", { type: err.type, message: err.message });
         if (this.peer === peer) this.leave();
         reject(err);
       };
@@ -143,7 +153,19 @@ export class PartyLink {
 
   /** Starts a voice call to the partner, sending `stream`. */
   call(stream) {
-    return this.connected ? this.peer.call(this.conn.peer, stream, { sdpTransform: limitVoice }) : null;
+    if (!this.connected) return null;
+    const call = this.peer.call(this.conn.peer, stream, { sdpTransform: limitVoice });
+    this.log.add("call.out");
+    this.watchCall(call);
+    return call;
+  }
+
+  watchCall(call) {
+    if (!call) return;
+    watchPeerConnection(call.peerConnection, this.log, "voice");
+    call.on("stream", () => this.log.add("call.stream"));
+    call.on("close", () => this.log.add("call.close"));
+    call.on("error", (err) => this.log.add("call.error", { type: err?.type, message: err?.message }));
   }
 
   /** Tells the partner we're leaving on purpose, so they don't wait for us to come back. */
@@ -151,6 +173,7 @@ export class PartyLink {
     const { peer, conn } = this;
     this.peer = this.conn = this.code = this.token = null;
     const bye = Boolean(conn?.open);
+    if (peer) this.log.add("leave", { bye });
     if (bye) conn.send({ t: "bye" });
     setTimeout(
       () => {
@@ -165,25 +188,39 @@ export class PartyLink {
     return new Promise((resolve, reject) => {
       const options = { debug: 0, config: { iceServers: iceServers(this.getIce()) } };
       const peer = id ? new Peer(id, options) : new Peer(options);
+      this.log.add("server.connecting", {
+        role: id ? "host" : "guest",
+        ice: options.config.iceServers.flatMap((s) => s.urls),
+      });
       const fail = (err) => {
+        this.log.add("server.failed", { type: err.type, message: err.message });
         peer.destroy();
         reject(err);
       };
       peer.once("error", fail);
       peer.once("open", () => {
         peer.off("error", fail);
+        this.log.add("server.open");
         this.peer = peer;
         peer.on("error", (err) => {
+          this.log.add("peer.error", { type: err.type, message: err.message });
           if (this.peer === peer) this.handlers.onError(err);
         });
         peer.on("call", (call) => {
-          if (this.peer === peer && this.connected && call.peer === this.conn.peer) this.handlers.onCall(call);
-          else call.close();
+          const ours = this.peer === peer && this.connected && call.peer === this.conn.peer;
+          this.log.add("call.in", { accepted: ours });
+          if (!ours) return call.close();
+          this.handlers.onCall(call);
+          // The connection only exists once the call is answered.
+          this.watchCall(call);
         });
         // Losing the pairing server keeps the open data connection; reconnecting lets a dropped partner rejoin.
         peer.on("disconnected", () => {
+          this.log.add("server.lost");
           setTimeout(() => {
-            if (this.peer === peer && !peer.destroyed && peer.disconnected) peer.reconnect();
+            if (this.peer !== peer || peer.destroyed || !peer.disconnected) return;
+            this.log.add("server.reconnect");
+            peer.reconnect();
           }, RECONNECT_MS);
         });
         resolve();
@@ -198,9 +235,13 @@ export class PartyLink {
     let lastSeen = Date.now();
     let pinger = null;
     conn.on("open", () => {
+      this.log.add("conn.open");
       lastSeen = Date.now();
       pinger = setInterval(() => {
-        if (Date.now() - lastSeen > STALE_MS) return conn.close();
+        if (Date.now() - lastSeen > STALE_MS) {
+          this.log.add("conn.stale", { silentMs: Date.now() - lastSeen });
+          return conn.close();
+        }
         conn.send({ t: "alive" });
       }, PING_MS);
       if (this.conn === conn && !awaitWelcome) this.handlers.onOpen();
@@ -209,11 +250,14 @@ export class PartyLink {
       lastSeen = Date.now();
       if (this.conn !== conn) return;
       const t = msg?.t;
+      if (t === "welcome" || t === "full" || t === "bye") this.log.add(`conn.${t}`);
       if (t === "welcome") this.handlers.onOpen();
       else if (t === "bye") left = true;
       else if (t !== "full" && t !== "alive") this.handlers.onMessage(msg);
     });
+    conn.on("error", (err) => this.log.add("conn.error", { type: err?.type, message: err?.message }));
     conn.on("close", () => {
+      this.log.add("conn.close", { left, current: this.conn === conn });
       clearInterval(pinger);
       if (this.conn !== conn) return;
       this.conn = null;

@@ -1,6 +1,7 @@
 import { readChat } from "../party/chat.js";
 import { parseCode } from "../party/code.js";
 import { PartyLink, describeError } from "../party/link.js";
+import { NetLog } from "../party/log.js";
 import { customIceServer } from "../party/net.js";
 import { SyncSession } from "../party/sync.js";
 import { VoiceChat } from "../party/voice.js";
@@ -13,6 +14,7 @@ import { load, save } from "./storage.js";
 import { toast } from "./toast.js";
 
 const ICE_KEY = "partyIce";
+const LOG_KEY = "partyLog";
 const SLOW_MS = 8000;
 const REJOIN_TRIES = 4;
 const REJOIN_GAP_MS = 2000;
@@ -51,6 +53,17 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
   const state = { status: "idle", role: null, error: "", lastCode: "", slow: false };
   let session = null;
   let ice = load(ICE_KEY, { urls: "", username: "", credential: "" });
+  const log = new NetLog({ load: () => load(LOG_KEY, []), save: (entries) => save(LOG_KEY, entries) });
+
+  /** Starts a log section for one attempt, with what's known about this browser and network. */
+  const logStart = (event, data) =>
+    log.add(event, {
+      ...data,
+      online: navigator.onLine,
+      net: navigator.connection?.effectiveType,
+      customRelay: customIceServer(ice)?.urls ?? "no",
+      ua: navigator.userAgent,
+    });
 
   const link = new PartyLink(
     {
@@ -80,6 +93,7 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
         else session?.receive(msg);
       },
       onClose({ left }) {
+        log.add("partner.lost", { left, role: state.role });
         endSession();
         // The host keeps its code (and the chat so far) so the partner can rejoin.
         if (state.role === "host") {
@@ -96,6 +110,7 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
       onError: (err) => toast(describeError(err), { type: "error", duration: 6000 }),
     },
     () => ice,
+    log,
   );
 
   const voice = new VoiceChat({
@@ -139,6 +154,7 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
   async function host() {
     if (iceProblem()) return set({ error: iceProblem() });
     busy({ role: "host" });
+    logStart("--- host");
     try {
       await link.host();
       set({ status: "waiting" });
@@ -153,6 +169,7 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     if (!code) return set({ error: "Codes are 6 letters and numbers, like abc 234." });
     if (iceProblem()) return set({ error: iceProblem() });
     busy({ role: "guest", lastCode: code });
+    logStart("--- join");
     try {
       await link.join(code);
     } catch (err) {
@@ -168,6 +185,7 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     for (let i = 0; i < REJOIN_TRIES; i++) {
       if (i) await wait(REJOIN_GAP_MS);
       if (state.status !== "reconnecting") return;
+      logStart("--- rejoin", { try: i + 1 });
       try {
         await link.join(code, token);
         return;
@@ -224,6 +242,12 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
           <input name="urls" placeholder="turns:relay.example.com:443" value="${escapeHtml(ice.urls)}" autocomplete="off" spellcheck="false" aria-label="Relay server URL" />
           <input name="username" placeholder="Username" value="${escapeHtml(ice.username)}" autocomplete="off" aria-label="Relay username" />
           <input name="credential" type="password" placeholder="Password" value="${escapeHtml(ice.credential)}" autocomplete="off" aria-label="Relay password" />
+          <p class="menu-note party-log-note">Connection log: what happened on recent attempts, to find out why connecting fails. No addresses or passwords are kept.</p>
+          <div class="party-log">
+            <button class="btn" type="button" data-action="log-copy">Copy log</button>
+            <button class="btn" type="button" data-action="log-save">Download</button>
+            <button class="btn" type="button" data-action="log-clear">Clear</button>
+          </div>
         </details>`;
 
     menu.innerHTML = `<div class="menu-title">Watch together</div>${body}`;
@@ -246,12 +270,31 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     if (!t) return;
     if (t.dataset.action === "host") host();
     else if (t.dataset.action === "leave") leave();
-    else if (t.dataset.action === "copy")
+    else if (t.dataset.action === "log-copy")
+      navigator.clipboard
+        ?.writeText(log.text())
+        .then(() => toast("Log copied", { type: "success" }))
+        .catch(() => toast("Couldn't copy. Use Download instead.", { type: "error" }));
+    else if (t.dataset.action === "log-save") downloadLog();
+    else if (t.dataset.action === "log-clear") {
+      log.clear();
+      toast("Log cleared");
+    } else if (t.dataset.action === "copy")
       navigator.clipboard
         ?.writeText(link.code)
         .then(() => toast("Code copied", { type: "success" }))
         .catch(() => toast("Couldn't copy. Select the code and copy it by hand.", { type: "error" }));
   });
+
+  function downloadLog() {
+    const url = URL.createObjectURL(new Blob([`${log.text()}\n`], { type: "text/plain" }));
+    const a = Object.assign(document.createElement("a"), {
+      href: url,
+      download: `cuebox-connection-log-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.txt`,
+    });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 
   button.onclick = () => {
     toggleMenu(button, menu);

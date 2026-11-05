@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Watch together connection log**: under Network settings, copy or download a log of recent connection attempts (pairing server, connection steps, relay use) to find out why connecting fails. Kept across reloads; no addresses or passwords are stored.
+
 ## [0.7.1] - 2026-11-04
 
 ### Added

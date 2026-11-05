@@ -837,6 +837,25 @@ video::-webkit-media-text-track-container {
   padding: 0 0 6px;
 }
 
+.party-net .party-log-note {
+  padding-top: 12px;
+}
+
+.party-log {
+  display: flex;
+  gap: 6px;
+}
+
+.party-log .btn {
+  flex: 1;
+  justify-content: center;
+  height: 32px;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 12px;
+}
+
 .party-net input {
   display: block;
   width: 100%;
