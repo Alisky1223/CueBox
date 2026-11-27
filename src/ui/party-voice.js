@@ -164,6 +164,11 @@ export function initPartyVoice({ voice, button, modeSwitch, stage, menu }) {
   document.addEventListener("keyup", (e) => {
     if (e.key.toLowerCase() === KEY && voice.mode === "ptt") talk(false);
   });
+  const resumeRelay = () => {
+    if (voice.relay && voice.ctx.state === "suspended") voice.resume();
+  };
+  document.addEventListener("pointerdown", resumeRelay);
+  document.addEventListener("keydown", resumeRelay);
   addEventListener("blur", () => voice.mode === "ptt" && talk(false));
 
   update();
