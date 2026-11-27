@@ -3,7 +3,7 @@ import prettier from "eslint-config-prettier";
 import globals from "globals";
 
 export default [
-  { ignores: ["dist/", "coverage/"] },
+  { ignores: ["dist/", "coverage/", "**/.wrangler/"] },
   js.configs.recommended,
   {
     languageOptions: {
@@ -13,6 +13,12 @@ export default [
     },
     rules: {
       "no-control-regex": "off",
+    },
+  },
+  {
+    files: ["worker/**/*.js"],
+    languageOptions: {
+      globals: { ...globals.serviceworker, WebSocketPair: "readonly", WebSocketRequestResponsePair: "readonly" },
     },
   },
   prettier,

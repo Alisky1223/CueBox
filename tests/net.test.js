@@ -27,12 +27,10 @@ describe("relay server settings", () => {
     expect(servers.length).toBe(iceServers(null).length + 1);
   });
 
-  it("offers TURN over TCP for networks that block UDP", () => {
-    expect(
-      iceServers(null)
-        .flatMap((s) => s.urls)
-        .some((u) => u.includes("transport=tcp")),
-    ).toBe(true);
+  it("uses STUN by default", () => {
+    const urls = iceServers(null).flatMap((s) => s.urls);
+    expect(urls.length).toBeGreaterThan(0);
+    expect(urls.every((url) => url.startsWith("stun:"))).toBe(true);
   });
 });
 

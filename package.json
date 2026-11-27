@@ -1,6 +1,6 @@
 {
   "name": "cuebox",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "now you can use voice chat when you watching movie with your partner",
   "license": "MIT",
   "private": true,
@@ -31,9 +31,7 @@
     "prettier": "^3.9.9",
     "vite": "^8.3.3",
     "vite-plugin-singlefile": "^2.3.3",
-    "vitest": "^5.0.3"
-  },
-  "dependencies": {
-    "peerjs": "^1.5.5"
+    "vitest": "^5.0.3",
+    "wrangler": "4.168.0"
   }
 }

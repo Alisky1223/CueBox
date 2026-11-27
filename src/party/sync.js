@@ -81,6 +81,7 @@ export class SyncSession {
   receive(msg) {
     switch (msg?.t) {
       case "hello":
+        if (msg.duration !== null && (!Number.isFinite(msg.duration) || msg.duration < 0)) return;
         this.remoteDuration = msg.duration;
         this.checkDuration();
         if (this.leader && this.media.ready) this.send(this.state("state"));
@@ -92,10 +93,13 @@ export class SyncSession {
         if (this.now() - this.lastLocal > SETTLE_MS && !this.media.seeking) this.apply(msg, SEEK_DRIFT);
         break;
       case "ping":
+        if (!Number.isFinite(msg.sent)) return;
         this.send({ t: "pong", sent: msg.sent });
         break;
       case "pong": {
-        const oneWay = Math.max(0, this.now() - msg.sent) / 2;
+        const elapsed = this.now() - msg.sent;
+        if (!Number.isFinite(msg.sent) || elapsed < 0 || elapsed > 30000) return;
+        const oneWay = elapsed / 2;
         this.latency = this.latency ? this.latency * 0.7 + oneWay * 0.3 : oneWay;
         break;
       }
@@ -122,6 +126,15 @@ export class SyncSession {
   apply({ playing, time, rate }, maxDrift) {
     const m = this.media;
     if (!m.ready) return;
+    if (
+      typeof playing !== "boolean" ||
+      !Number.isFinite(time) ||
+      time < 0 ||
+      !Number.isFinite(rate) ||
+      rate < 0.5 ||
+      rate > 2
+    )
+      return;
     const target = Math.min(time + (playing ? (this.latency / 1000) * rate : 0), m.duration);
     this.expected = { playing, time: target, rate, at: this.now() };
     this.applying = true;

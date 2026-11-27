@@ -15,6 +15,7 @@ import { toast } from "./toast.js";
 
 const ICE_KEY = "partyIce";
 const RELAYS_KEY = "partyRelays";
+const VOICE_RELAY_KEY = "partyVoiceRelay";
 const LOG_KEY = "partyLog";
 const SLOW_MS = 8000;
 const REJOIN_TRIES = 4;
@@ -50,13 +51,14 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     setRate: (rate) => (video.playbackRate = rate),
   };
 
-  // status: idle | busy | waiting (host, no partner yet) | connected | reconnecting (guest lost the host)
   const state = { status: "idle", role: null, error: "", lastCode: "", slow: false };
   let session = null;
+  let partnerTimer;
+  let reconnectAttempt;
   const relays = readRelays(load(RELAYS_KEY, null), load(ICE_KEY, null));
   const ice = () => activeRelay(relays);
   const saveRelays = () => save(RELAYS_KEY, relays);
-  let netOpen = relays.active !== FREE_RELAY;
+  let netOpen = load(VOICE_RELAY_KEY, false) === true || relays.active !== FREE_RELAY;
   const log = new NetLog({ load: () => load(LOG_KEY, []), save: (entries) => save(LOG_KEY, entries) });
 
   /** Starts a log section for one attempt, with what's known about this browser and network. */
@@ -93,9 +95,13 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
         toast(rejoined ? "Reconnected." : "Partner connected. Playback is synced.", { type: "success" });
       },
       onMessage(msg) {
+        if (msg.t.startsWith("rtc-")) return voice.receiveSignal(msg);
         const incoming = readChat(msg);
         if (incoming) chat.receive(incoming);
         else session?.receive(msg);
+      },
+      onVoice(packet) {
+        voice.receiveVoice(packet);
       },
       onClose({ left }) {
         log.add("partner.lost", { left, role: state.role });
@@ -105,30 +111,38 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
           toast(left ? "Your partner left." : "Lost your partner. Waiting for them to reconnect…");
           return set({ status: "waiting" });
         }
-        if (!left) return rejoin();
+        if (!left) {
+          toast("Lost your partner. Waiting for them to reconnect…");
+          set({ status: "reconnecting" });
+          partnerTimer = setTimeout(() => stopWithError("Lost the connection to your partner."), 30000);
+          return;
+        }
         toast("Your partner left.");
-        chat.reset();
-        link.leave();
-        set({ status: "idle", role: null, error: "Your partner left." });
+        stopWithError("Your partner left.");
       },
-      onCall: (call) => voice.answer(call),
-      onError: (err) => toast(describeError(err), { type: "error", duration: 6000 }),
+      onDisconnect() {
+        endSession();
+        void rejoin();
+      },
     },
-    ice,
     log,
   );
+  link.voiceRelay = load(VOICE_RELAY_KEY, false) === true;
 
   const voice = new VoiceChat({
     onChange: () => voiceUi.update(),
     onLevel: (db) => voiceUi.meter(db),
     onDuck,
     onError: (err) => toast(err.message, { type: "error", duration: 6000 }),
+    getIce: ice,
+    log,
   });
   const voiceUi = initPartyVoice({ voice, button: micButton, modeSwitch: voiceMode, stage, menu });
 
   const chat = initPartyChat({ stage, button: chatButton, panel: chatPanel, send: (msg) => link.send(msg) });
 
   const endSession = () => {
+    clearTimeout(partnerTimer);
     session?.stop();
     session = null;
     chat.setConnected(false);
@@ -145,24 +159,17 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     render();
   };
 
-  /** Says what's wrong with the relay server settings, if anything. */
-  const iceProblem = () =>
-    customIceServer(ice()) === undefined
-      ? "The relay server URL in Network settings must start with turn:, turns: or stun:."
-      : "";
-
   const busy = (patch) => {
     set({ status: "busy", error: "", slow: false, ...patch });
     setTimeout(() => state.status === "busy" && set({ slow: true }), SLOW_MS);
   };
 
   async function host() {
-    if (iceProblem()) return set({ error: iceProblem() });
     busy({ role: "host" });
     logStart("--- host");
     try {
       await link.host();
-      set({ status: "waiting" });
+      if (state.status === "busy") set({ status: "waiting" });
     } catch (err) {
       link.leave();
       set({ status: "idle", role: null, error: describeError(err) });
@@ -172,48 +179,43 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
   async function join(input) {
     const code = parseCode(input);
     if (!code) return set({ error: "Codes are 6 letters and numbers, like abc 234." });
-    if (iceProblem()) return set({ error: iceProblem() });
     busy({ role: "guest", lastCode: code });
     logStart("--- join");
     try {
       await link.join(code);
     } catch (err) {
+      link.leave();
       set({ status: "idle", role: null, error: describeError(err) });
     }
   }
 
-  /** The guest lost the host without them leaving: try to take the same spot back for a while. */
   async function rejoin() {
-    const { code, token } = link;
+    const attempt = (reconnectAttempt = {});
     set({ status: "reconnecting" });
     toast("Connection lost. Reconnecting…");
     for (let i = 0; i < REJOIN_TRIES; i++) {
       if (i) await wait(REJOIN_GAP_MS);
-      if (state.status !== "reconnecting") return;
+      if (reconnectAttempt !== attempt) return;
       logStart("--- rejoin", { try: i + 1 });
       try {
-        await link.join(code, token);
+        await link.reconnect();
+        if (reconnectAttempt === attempt && state.role === "host" && !link.connected) set({ status: "waiting" });
         return;
       } catch (err) {
-        if (state.status !== "reconnecting") return;
-        if (err.type === "peer-unavailable" || err.type === "full" || i === REJOIN_TRIES - 1) {
-          chat.reset();
-          link.leave();
-          return set({
-            status: "idle",
-            role: null,
-            error: `Lost the connection to your partner. ${describeError(err)}`,
-          });
+        if (reconnectAttempt !== attempt) return;
+        if (err.type === "room-full" || i === REJOIN_TRIES - 1) {
+          return stopWithError(`Lost the connection to your partner. ${describeError(err)}`);
         }
       }
     }
   }
 
-  function leave() {
+  function stopWithError(error = "") {
+    reconnectAttempt = null;
     endSession();
     chat.reset();
     link.leave();
-    set({ status: "idle", role: null, error: "" });
+    set({ status: "idle", role: null, error });
   }
 
   function render() {
@@ -243,8 +245,17 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
         ${error ? `<p class="menu-note menu-error">${escapeHtml(error)}</p>` : ""}
         <details class="party-net"${netOpen ? " open" : ""}>
           <summary>Network settings</summary>
-          <p class="menu-note">If you can't connect, one of you may be on a network that blocks direct connections or the free relay. A TURN relay server of your own gets through; one of you setting it is enough. Saved relays stay in this browser only.</p>
-          ${relayFields()}
+          <select name="voice-transport" aria-label="Voice connection">
+            <option value="webrtc"${link.voiceRelay ? "" : " selected"}>WebRTC (default)</option>
+            <option value="cloudflare"${link.voiceRelay ? " selected" : ""}>Cloudflare voice relay</option>
+          </select>
+          ${
+            link.voiceRelay
+              ? note(
+                  "Both viewers must choose Cloudflare voice relay before joining. Mic audio passes through Cloudflare.",
+                )
+              : `${note("You can add a TURN server to help WebRTC connect on restricted networks.")}${relayFields()}`
+          }
           <p class="menu-note party-log-note">Connection log: what happened on recent attempts, to find out why connecting fails. No addresses or passwords are kept.</p>
           <div class="party-log">
             <button class="btn" type="button" data-action="log-copy">Copy log</button>
@@ -263,7 +274,7 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     const option = (value, label) =>
       `<option value="${escapeHtml(value)}"${value === relays.active ? " selected" : ""}>${escapeHtml(label)}</option>`;
     const select = `<select name="relay" aria-label="Relay server">
-      ${option(FREE_RELAY, "Free relay (PeerJS)")}
+      ${option(FREE_RELAY, "Default voice connection (STUN)")}
       ${relays.list.map((r) => option(r.id, r.name || "Unnamed relay")).join("")}
       <option value="new">Add a relay…</option>
     </select>`;
@@ -297,6 +308,13 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
   menu.addEventListener("change", (e) => {
     const select = e.target.closest(".party-net select");
     if (!select) return;
+    if (select.name === "voice-transport") {
+      link.voiceRelay = select.value === "cloudflare";
+      save(VOICE_RELAY_KEY, link.voiceRelay);
+      render();
+      menu.querySelector('[name="voice-transport"]').focus();
+      return;
+    }
     if (select.value === "new") {
       const relay = {
         id: `r${Date.now().toString(36)}`,
@@ -319,7 +337,7 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     const t = e.target.closest("[data-action]");
     if (!t) return;
     if (t.dataset.action === "host") host();
-    else if (t.dataset.action === "leave") leave();
+    else if (t.dataset.action === "leave") stopWithError();
     else if (t.dataset.action === "relay-delete") {
       relays.list = relays.list.filter((r) => r.id !== relays.active);
       relays.active = FREE_RELAY;

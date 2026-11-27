@@ -1,17 +1,5 @@
 // Few servers on purpose: every extra one slows candidate gathering.
 const STUN = { urls: ["stun:stun.l.google.com:19302", "stun:stun.cloudflare.com:3478"] };
-// PeerJS's free relay. `turn:` alone means UDP only; the TCP variants get through networks that block UDP.
-const PEERJS_TURN = {
-  urls: [
-    "turn:eu-0.turn.peerjs.com:3478?transport=udp",
-    "turn:eu-0.turn.peerjs.com:3478?transport=tcp",
-    "turn:us-0.turn.peerjs.com:3478?transport=udp",
-    "turn:us-0.turn.peerjs.com:3478?transport=tcp",
-  ],
-  username: "peerjs",
-  credential: "peerjsp",
-};
-
 const ICE_URL = /^(stun|turns?):[^\s]+$/i;
 
 /**
@@ -29,10 +17,10 @@ export function customIceServer(server) {
   return own;
 }
 
-/** The user's own server goes first so it's tried alongside the free ones, not after them. */
+/** Try the user's own voice relay alongside the default STUN servers. */
 export function iceServers(custom) {
   const own = customIceServer(custom);
-  return own ? [own, STUN, PEERJS_TURN] : [STUN, PEERJS_TURN];
+  return own ? [own, STUN] : [STUN];
 }
 
 export const VOICE_KBPS = 24;
