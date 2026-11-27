@@ -36,8 +36,10 @@ initSubtitleMenu({
   onAddFile: () => subInput.click(),
   onAddLink: askSubtitleLink,
 });
-initPartyMenu({
+const partyMenu = initPartyMenu({
   button: $("partyBtn"),
+  startButton: $("startPartyBtn"),
+  startTools: $("startPartyTools"),
   menu: $("partyMenu"),
   video,
   stage,
@@ -46,6 +48,8 @@ initPartyMenu({
   micButton: $("micBtn"),
   voiceMode: $("voiceMode"),
   onDuck: controls.setDuck,
+  onVideoLink: (url) => openLink(url, { fromPartner: true }),
+  isOpeningLink: () => Boolean(pendingLink),
 });
 const linkForms = initLinkForms({
   button: $("linkBtn"),
@@ -116,7 +120,7 @@ function openFiles(files) {
 const isMatroska = (name) => /\.(mkv|mka|webm)$/i.test(name);
 
 /** Resets per-video state and starts playing `src`. Returns the new video's codec state. */
-function startVideo(src, name, { link = false, cors = false } = {}) {
+function startVideo(src, name, { link = false, cors = false, fromPartner = false } = {}) {
   pendingLink = null;
   scan?.abort();
   scan = new AbortController();
@@ -128,9 +132,14 @@ function startVideo(src, name, { link = false, cors = false } = {}) {
   if (cors) video.crossOrigin = "anonymous";
   else video.removeAttribute("crossorigin");
   video.src = src;
-  video.play().catch(() => {});
+  video.play().catch((err) => {
+    if (fromPartner && err.name === "NotAllowedError") {
+      toast("Your partner opened a video. Press play to start watching.", { duration: 6000 });
+    }
+  });
 
   app.classList.remove("is-empty");
+  partyMenu.showPlayer();
   $("title").textContent = name;
   $("title").title = link ? src : name;
   document.title = `${name} – CueBox`;
@@ -146,12 +155,13 @@ function openVideo(file) {
 // (audio tracks, HEVC check) also needs the server to allow CORS range requests. Embedded subtitles aren't
 // scanned for links: they're spread through the whole file, so finding them means downloading all of it.
 // When it allows CORS the video is loaded in CORS mode, else Web Audio (used to swap in another audio track) only gets silence from it.
-async function openLink(url) {
+async function openLink(url, { fromPartner = false } = {}) {
+  if (!fromPartner) partyMenu.shareVideoLink(url);
   const name = nameFromUrl(url);
   const token = (pendingLink = {});
   const cors = await allowsCors(url, { signal: AbortSignal.timeout(5000) }).catch(() => false);
   if (token !== pendingLink) return;
-  const current = startVideo(url, name, { link: true, cors });
+  const current = startVideo(url, name, { link: true, cors, fromPartner });
   const { signal } = scan;
   current.ready = openRemoteFile(url, { signal })
     .then((file) => {

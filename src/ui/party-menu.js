@@ -24,10 +24,24 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const formatCode = (code) => `${code.slice(0, 3)} ${code.slice(3)}`;
 
-export function initPartyMenu({ button, menu, video, stage, chatButton, chatPanel, micButton, voiceMode, onDuck }) {
+export function initPartyMenu({
+  button,
+  startButton,
+  startTools,
+  menu,
+  video,
+  stage,
+  chatButton,
+  chatPanel,
+  micButton,
+  voiceMode,
+  onDuck,
+  onVideoLink,
+  isOpeningLink,
+}) {
   const media = {
     get ready() {
-      return video.readyState >= HTMLMediaElement.HAVE_METADATA && Number.isFinite(video.duration);
+      return !isOpeningLink() && video.readyState >= HTMLMediaElement.HAVE_METADATA && Number.isFinite(video.duration);
     },
     get seeking() {
       return video.seeking;
@@ -52,6 +66,7 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
   };
 
   const state = { status: "idle", role: null, error: "", lastCode: "", slow: false };
+  let onStartScreen = true;
   let session = null;
   let partnerTimer;
   let reconnectAttempt;
@@ -81,6 +96,7 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
           media,
           leader: state.role === "host",
           send: (msg) => link.send(msg),
+          onVideoLink,
           onMismatch: (local, remote) =>
             toast(
               `Your videos have different lengths (${formatTime(local)} here, ${formatTime(remote)} for your partner). Make sure you both opened the same version.`,
@@ -92,13 +108,17 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
         voiceUi.setConnected(true);
         voice.open(link, { leader: state.role === "host" });
         set({ status: "connected", error: "" });
-        toast(rejoined ? "Reconnected." : "Partner connected. Playback is synced.", { type: "success" });
+        toast(rejoined ? "Reconnected." : "Partner connected.", { type: "success" });
       },
       onMessage(msg) {
         if (msg.t.startsWith("rtc-")) return voice.receiveSignal(msg);
         const incoming = readChat(msg);
         if (incoming) chat.receive(incoming);
-        else session?.receive(msg);
+        else if (session) {
+          const wasReady = session.ready;
+          session.receive(msg);
+          if (session.ready !== wasReady) render();
+        }
       },
       onVoice(packet) {
         voice.receiveVoice(packet);
@@ -137,7 +157,10 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     getIce: ice,
     log,
   });
-  const voiceUi = initPartyVoice({ voice, button: micButton, modeSwitch: voiceMode, stage, menu });
+  const playerActions = voiceMode.parentElement;
+  startTools.append(chatButton, micButton, voiceMode);
+  startTools.after(chatPanel);
+  const voiceUi = initPartyVoice({ voice, button: micButton, modeSwitch: voiceMode, stage, startTools, menu });
 
   const chat = initPartyChat({ stage, button: chatButton, panel: chatPanel, send: (msg) => link.send(msg) });
 
@@ -151,7 +174,16 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
   };
 
   for (const ev of ["play", "pause", "seeked", "ratechange"]) video.addEventListener(ev, () => session?.localChange());
-  video.addEventListener("loadedmetadata", () => session?.mediaLoaded());
+  video.addEventListener("loadedmetadata", () => {
+    if (!session) return;
+    session.mediaLoaded();
+    render();
+  });
+  video.addEventListener("emptied", () => {
+    if (!session) return;
+    session.mediaUnloaded();
+    render();
+  });
   addEventListener("pagehide", () => link.leave());
 
   const set = (patch) => {
@@ -218,6 +250,12 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     set({ status: "idle", role: null, error });
   }
 
+  function connectedMessage() {
+    if (!media.ready) return "Connected. Open your copy of the video.";
+    if (!session?.ready) return "Connected. Waiting for your partner to open a video.";
+    return "Connected. Play, pause and seeking are shared. Chat with the chat button, talk with the mic button.";
+  }
+
   function render() {
     const { status, error } = state;
     const code = link.code ? `<div class="party-code" title="Code">${formatCode(link.code)}</div>` : "";
@@ -233,7 +271,7 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     else if (status === "waiting")
       body = `${code}${action("copy", "copy", "Copy code")}${note("Send this code to your partner. Waiting for them to join…")}<div class="menu-sep"></div>${action("leave", "x", "Stop")}`;
     else if (status === "connected")
-      body = `${note(`<span class="party-dot"></span>Connected. Play, pause and seeking are shared. Chat with the chat button, talk with the mic button.`)}${state.role === "host" ? code : ""}${voiceUi.section()}<div class="menu-sep"></div>${action("leave", "x", "Leave")}`;
+      body = `${note(`<span class="party-dot"></span>${connectedMessage()}`)}${note("When you play a video from a link, the link opens for both viewers.")}${state.role === "host" ? code : ""}${voiceUi.section()}<div class="menu-sep"></div>${action("leave", "x", "Leave")}`;
     else
       body = `${note("Watch in sync with someone on another device. You each open your own copy of the same video; only play, pause, seeking, chat and voice are shared.")}
         ${action("host", "users", "Create a code")}
@@ -264,7 +302,8 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
           </div>
         </details>`;
 
-    menu.innerHTML = `<div class="menu-title">Watch together</div>${body}`;
+    menu.innerHTML = `${onStartScreen ? "" : '<div class="menu-title">Watch together</div>'}${body}`;
+    startTools.hidden = status !== "connected";
     button.classList.toggle("on", status === "connected");
     button.title = status === "connected" ? "Watch together · connected" : "Watch together";
   }
@@ -373,5 +412,24 @@ export function initPartyMenu({ button, menu, video, stage, chatButton, chatPane
     toggleMenu(button, menu);
     if (!menu.hidden) menu.querySelector("input")?.focus();
   };
+  startButton.onclick = () => {
+    menu.hidden = !menu.hidden;
+    startButton.setAttribute("aria-expanded", String(!menu.hidden));
+  };
   render();
+
+  return {
+    shareVideoLink: (url) => session?.shareVideoLink(url),
+    showPlayer() {
+      if (!onStartScreen) return;
+      onStartScreen = false;
+      menu.hidden = true;
+      menu.classList.remove("start-party-menu");
+      button.before(micButton, chatButton);
+      playerActions.append(voiceMode);
+      stage.append(menu, chatPanel);
+      voiceUi.showPlayer();
+      render();
+    },
+  };
 }

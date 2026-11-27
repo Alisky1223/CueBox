@@ -63,17 +63,17 @@ Paste a link into the box under **Drop a video here** and press **Play**. While 
 
 ### Watch together
 
-1. You and your partner each open your own copy of the same video.
-2. One of you clicks the **Watch together** button (two people) in the player controls, then **Create a code**, and sends the code to the other person.
-3. The other person opens **Watch together**, types the code and clicks **Join**.
+1. Open **Watch together** on the start screen or in the player controls. One person selects **Create a code** and shares it.
+2. The other person opens **Watch together**, types the code and selects **Join**.
+3. For a local video, each person opens their own copy. If either person plays a video from a link while connected, CueBox opens the same link on both devices. Playback sync starts once both videos are ready.
 
 From then on, play, pause, seeking and speed changes on either side apply to both players. CueBox warns you if the two videos have different lengths. The CueBox WebSocket relay carries playback commands, text chat, reactions and the signals needed to connect voice chat. Voice audio uses WebRTC by default.
 
-Once connected, the **Chat** button (speech bubble) opens a chat panel over the video, also in fullscreen. Type a message, or tap an emoji to send a reaction that floats up on both screens. Set your name at the top of the panel. Messages that arrive while the panel is closed pop up briefly over the video. Chat isn't saved anywhere.
+Once connected, the **Chat** button (speech bubble) opens chat on the start screen or over the video, including in fullscreen. Type a message, or tap an emoji to send a reaction. Set your name at the top of the panel. Messages that arrive while the panel is closed pop up briefly over the video. Chat isn't saved anywhere.
 
 ![Watch together chat with emoji reactions](docs/screenshots/watch-together-chat.png)
 
-The **Mic** button turns on voice chat (your browser asks for the microphone the first time). Pick the mode with the **Open mic** / **Push to talk** switch at the top right (also under **Voice** in the **Watch together** menu):
+The **Mic** button turns on voice chat from the start screen or the player (your browser asks for the microphone the first time). Pick **Open mic** or **Push to talk** beside the start-screen controls or at the top right in the player:
 
 - **Open mic**: click the mic button (or press `V`) to turn the mic on or off. Only sound louder than the **Threshold** is sent, so background noise stays out. Speak and move the marker just above the noise on the level bar.
 - **Push to talk**: hold the mic button or `V` while you talk. Handy in public places.

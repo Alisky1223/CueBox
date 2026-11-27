@@ -213,11 +213,11 @@ video::-webkit-media-text-track-container {
 
 .is-empty video,
 .is-empty .controls,
-.is-empty .menu,
-.is-empty .chat,
+.is-empty .menu:not(.start-party-menu),
+.is-empty .stage > .chat,
 .is-empty .chat-bubbles,
 .is-empty .chat-floats,
-.is-empty .voice-badge {
+.is-empty .stage > .voice-badge {
   display: none;
 }
 
@@ -656,6 +656,39 @@ video::-webkit-media-text-track-container {
 
 .menu-wide {
   width: 320px;
+}
+
+.start-party {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.start-party-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+
+.start-party .chat {
+  position: static;
+  width: 100%;
+  height: min(300px, 55vh);
+  box-shadow: none;
+}
+
+.start-party-tools .voice-badge {
+  position: static;
+}
+
+.menu.start-party-menu {
+  position: static;
+  width: 100%;
+  max-height: none;
+  overflow: visible;
+  box-shadow: none;
 }
 
 .menu-title {
