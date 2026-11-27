@@ -52,12 +52,21 @@ function pair({ hostDuration = 100, guestDuration = 100 } = {}) {
   const hostMedia = fakeMedia(hostDuration);
   const guestMedia = fakeMedia(guestDuration);
   const onMismatch = vi.fn();
-  const host = new SyncSession({ media: hostMedia, leader: true, now, send: (m) => queue.push([guest, m]) });
+  const hostLink = vi.fn();
+  const guestLink = vi.fn();
+  const host = new SyncSession({
+    media: hostMedia,
+    leader: true,
+    now,
+    onVideoLink: hostLink,
+    send: (m) => queue.push([guest, m]),
+  });
   const guest = new SyncSession({
     media: guestMedia,
     leader: false,
     now,
     onMismatch,
+    onVideoLink: guestLink,
     send: (m) => queue.push([host, m]),
   });
   hostMedia.onEvent = () => host.localChange();
@@ -68,7 +77,7 @@ function pair({ hostDuration = 100, guestDuration = 100 } = {}) {
     vi.advanceTimersByTime(ms);
     flush();
   };
-  return { host, guest, hostMedia, guestMedia, flush, advance, queue, onMismatch };
+  return { host, guest, hostMedia, guestMedia, flush, advance, queue, onMismatch, hostLink, guestLink };
 }
 
 describe("SyncSession", () => {
@@ -182,6 +191,37 @@ describe("SyncSession", () => {
     expect(p.guestMedia.time).toBeCloseTo(30, 1);
   });
 
+  it.each(["host", "guest"])("pairs before either video loads, then syncs when the %s opens first", (first) => {
+    const p = pair();
+    const second = first === "host" ? "guest" : "host";
+    p.hostMedia.ready = p.guestMedia.ready = false;
+    p.host.start();
+    p.guest.start();
+    p.flush();
+
+    p[`${first}Media`].ready = true;
+    p[first].mediaLoaded();
+    p[`${first}Media`].seek(30);
+    p[`${first}Media`].play();
+    p.host.heartbeat();
+    expect(p.queue.map(([, msg]) => msg.t)).toEqual(["hello"]);
+    p.flush();
+    expect(p.host.ready).toBe(false);
+    expect(p.guest.ready).toBe(false);
+
+    p[`${second}Media`].ready = true;
+    p[second].mediaLoaded();
+    p.flush();
+    expect(p.host.ready).toBe(true);
+    expect(p.guest.ready).toBe(true);
+    expect(p.guestMedia.time).toBe(p.hostMedia.time);
+    expect(p.guestMedia.playing).toBe(p.hostMedia.playing);
+
+    p.guestMedia.seek(50);
+    p.flush();
+    expect(p.hostMedia.time).toBe(50);
+  });
+
   it("warns once when video lengths differ", () => {
     const p = pair({ guestDuration: 90 });
     p.host.start();
@@ -191,6 +231,73 @@ describe("SyncSession", () => {
     p.flush();
     expect(p.onMismatch).toHaveBeenCalledTimes(1);
     expect(p.onMismatch).toHaveBeenCalledWith(90, 100);
+  });
+
+  it("opens a guest's video link on the host and ignores old playback messages while it loads", () => {
+    const p = pair();
+    p.host.start();
+    p.guest.start();
+    p.flush();
+
+    const url = "https://example.com/movie.mp4";
+    p.guest.shareVideoLink(url);
+    p.flush();
+    expect(p.hostLink).toHaveBeenCalledExactlyOnceWith(url);
+    expect(p.guestLink).not.toHaveBeenCalled();
+    p.host.receive({ t: "hello", duration: 10, canShareVideo: true, linkVersion: 0 });
+    p.host.receive({ t: "state", time: 80, rate: 1, playing: true, linkVersion: 0 });
+    expect(p.hostMedia.time).toBe(0);
+    expect(p.host.ready).toBe(false);
+    p.hostMedia.time = 20;
+    p.host.mediaLoaded();
+    p.guest.mediaLoaded();
+    p.flush();
+    expect(p.guestMedia.time).toBe(20);
+  });
+
+  it("uses the host's link when both viewers submit at the same time", () => {
+    const p = pair();
+    p.host.start();
+    p.guest.start();
+    p.flush();
+    p.host.shareVideoLink("https://example.com/host.mp4");
+    p.guest.shareVideoLink("https://example.com/guest.mp4");
+    p.flush();
+    expect(p.guestLink).toHaveBeenCalledExactlyOnceWith("https://example.com/host.mp4");
+    expect(p.hostLink).not.toHaveBeenCalled();
+  });
+
+  it("shares a link even before the partner's first hello arrives", () => {
+    const p = pair();
+    p.host.start();
+    p.guest.start();
+    p.host.shareVideoLink("https://example.com/movie.mp4");
+    p.flush();
+    expect(p.guestLink).toHaveBeenCalledExactlyOnceWith("https://example.com/movie.mp4");
+  });
+
+  it("keeps playback sync with an older partner when their first hello arrives late", () => {
+    const media = fakeMedia();
+    const host = new SyncSession({ media, leader: true, send: vi.fn() });
+    host.shareVideoLink("https://example.com/movie.mp4");
+    expect(host.ready).toBe(false);
+    host.receive({ t: "hello", duration: 100 });
+    host.receive({ t: "state", time: 25, rate: 1, playing: false });
+    expect(host.ready).toBe(true);
+    expect(media.time).toBe(25);
+  });
+
+  it("ignores unsupported links without interrupting existing playback sync", () => {
+    const p = pair();
+    p.host.start();
+    p.guest.start();
+    p.flush();
+    p.guest.shareVideoLink("https://user:password@example.com/movie.mp4");
+    p.host.receive({ t: "video-link", url: "file:///movie.mp4", linkVersion: 2 });
+    p.flush();
+    expect(p.hostLink).not.toHaveBeenCalled();
+    expect(p.host.ready).toBe(true);
+    expect(p.guest.ready).toBe(true);
   });
 
   it("accepts lengths within a couple of seconds", () => {

@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-27
+
+### Added
+
+- **Watch together on the start screen**: create or join a room, chat, and use your microphone before opening a video. The room, chat history, and microphone state carry over into the player.
+- **Shared video links**: when either viewer plays a video from a link, CueBox opens it on both devices. Playback sync starts once both players are ready.
+
 ## [0.8.0] - 2026-11-27
 
 ### Added
