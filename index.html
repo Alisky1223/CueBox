@@ -108,6 +108,26 @@
             />
             <button class="btn btn-primary" type="submit">Play</button>
           </form>
+
+          <div class="start-party">
+            <button
+              class="btn btn-ghost"
+              id="startPartyBtn"
+              type="button"
+              aria-controls="partyMenu"
+              aria-expanded="false"
+            >
+              <span data-icon="users"></span>Watch together
+            </button>
+            <div class="menu menu-wide start-party-menu" id="partyMenu" hidden></div>
+            <div
+              class="start-party-tools"
+              id="startPartyTools"
+              role="group"
+              aria-label="Watch together chat and voice"
+              hidden
+            ></div>
+          </div>
         </div>
 
         <div class="flash" id="flash"></div>
@@ -151,7 +171,6 @@
         <div class="menu" id="speedMenu" hidden></div>
         <div class="menu menu-wide" id="audioMenu" hidden></div>
         <div class="menu menu-wide" id="subMenu" hidden></div>
-        <div class="menu menu-wide" id="partyMenu" hidden></div>
         <div class="chat" id="chatPanel" hidden></div>
       </main>
 

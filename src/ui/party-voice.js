@@ -18,7 +18,7 @@ const micError = (err) =>
  * Mic button (click to toggle in open mic, hold in push to talk, or the V key), the mode switch in the top bar,
  * the partner-talking badge, and the voice settings shown in the Watch together menu.
  */
-export function initPartyVoice({ voice, button, modeSwitch, stage, menu }) {
+export function initPartyVoice({ voice, button, modeSwitch, stage, startTools, menu }) {
   voice.mode = MODES[load("voiceMode")] ? load("voiceMode") : "open";
   voice.threshold = load("voiceThreshold", voice.threshold);
   voice.ducking = load("voiceDucking", true);
@@ -29,7 +29,7 @@ export function initPartyVoice({ voice, button, modeSwitch, stage, menu }) {
   badge.className = "voice-badge";
   badge.hidden = true;
   badge.innerHTML = `${icon("mic")}<span>Partner is talking</span>`;
-  stage.append(badge);
+  startTools.append(badge);
 
   const toggle = () => {
     if (voice.live) voice.disable();
@@ -175,6 +175,7 @@ export function initPartyVoice({ voice, button, modeSwitch, stage, menu }) {
   return {
     update,
     meter,
+    showPlayer: () => stage.append(badge),
     /** Voice settings for the menu; they re-render themselves inside this wrapper. */
     section: () => `<div class="voice-section">${sectionHtml()}</div>`,
     setConnected(value) {
