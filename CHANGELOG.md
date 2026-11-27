@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-27
+
+### Added
+
+- **Cloudflare voice relay**: when WebRTC is unavailable, both viewers can opt in under **Watch together → Network settings** before joining to send mic audio through the Watch together relay.
+- **Watch together saved relays**: save several TURN relay servers (e.g. one from metered.ca) under Network settings and pick which to use, or switch back to the free relay. They stay in your browser only; an existing relay setting is kept as "My relay".
+- **Watch together connection log**: under Network settings, copy or download a log of recent connection attempts (pairing server, connection steps, relay use) to find out why connecting fails. Kept across reloads; no addresses or passwords are stored.
+
+### Changed
+
+- **Watch together connection**: room pairing, playback sync, chat, and reactions now use a Cloudflare WebSocket relay. Voice audio uses WebRTC by default.
+
 ## [0.7.1] - 2026-11-04
 
 ### Added
